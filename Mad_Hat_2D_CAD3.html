@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mad Hat 2D CAD — Trace, Design, Create</title>
+<style>
+:root{--bg:#10141d;--panel:#191f2b;--panel2:#202838;--line:#303b4f;--text:#edf2fa;--muted:#9ba9bd;--orange:#f0a000;--blue:#58a6ff;--green:#62d6bd}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px Arial,Helvetica,sans-serif;height:100vh;overflow:hidden}
+button,input,select{font:inherit}
+button{cursor:pointer;color:var(--text);background:#253247;border:1px solid #40516a;border-radius:6px;padding:8px 10px}
+button:hover{border-color:var(--orange);background:#2c3b51}
+button.active{background:#49340f;border-color:var(--orange);color:#ffd47a}
+input[type="text"],input[type="number"],select{background:#101722;color:var(--text);border:1px solid #35445a;border-radius:5px;padding:7px;min-width:0}
+input[type="range"]{width:100%;accent-color:var(--orange)}
+input[type="color"]{width:38px;height:30px;padding:2px;background:#101722;border:1px solid #40516a;border-radius:5px}
+header{height:72px;display:flex;align-items:center;gap:15px;padding:8px 16px;background:#121b28;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;min-width:270px}
+.hat{font-size:36px}
+.brand h1{font-size:24px;margin:0;letter-spacing:.5px}
+.brand h1 span{color:var(--orange)}
+.brand small{display:block;color:#b9c8dc;letter-spacing:2px;margin-top:3px}
+.topbtns{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.topbtns button{min-width:70px}
+.spacer{flex:1}
+.app{height:calc(100vh - 112px);display:grid;grid-template-columns:82px 300px minmax(320px,1fr) 300px;gap:10px;padding:10px}
+.panel{background:var(--panel);border:1px solid #263448;border-radius:7px;min-height:0;overflow:auto}
+.panel h3{font-size:15px;margin:0 0 10px}
+.section{padding:12px;border-bottom:1px solid #2b374a}
+.section:last-child{border-bottom:0}
+.muted{color:var(--muted);font-size:12px;line-height:1.5}
+.row{display:flex;align-items:center;gap:7px;margin:7px 0}
+.row>*{flex:1}
+.row label{flex:0 0 auto}
+.tools{padding:8px 5px;display:flex;flex-direction:column;gap:5px}
+.tools button{font-size:12px;padding:10px 2px;min-height:42px}
+.tools button span{display:block;font-size:18px;margin-bottom:3px}
+.canvasWrap{display:flex;flex-direction:column;overflow:hidden;position:relative}
+.canvasTop{display:flex;gap:5px;align-items:center;flex-wrap:wrap;padding:7px;background:#171f2d;border-bottom:1px solid var(--line)}
+.canvasTop button{padding:7px 9px}
+.canvasArea{flex:1;min-height:0;position:relative;background:#111925}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.canvasFoot{height:38px;display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:#171f2d;color:var(--muted);font-size:12px}
+.layerList{display:flex;flex-direction:column;gap:5px}
+.layer{display:flex;align-items:center;gap:6px;padding:7px;background:#141b27;border:1px solid transparent;border-radius:5px}
+.layer.selected{border-color:var(--orange);background:#2a251c}
+.layer .lname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.layer button{padding:3px 6px;font-size:12px}
+.swatch{width:13px;height:13px;border-radius:3px;border:1px solid #ffffff55;flex:0 0 13px}
+.wide{width:100%;margin-top:7px}
+.primary{background:var(--orange);color:#171717;border-color:#ffb52d;font-weight:bold}
+.primary:hover{background:#ffb21a;color:#111}
+.checkbox{display:flex;align-items:center;gap:7px;margin:8px 0;font-size:12px}
+.checkbox input{accent-color:var(--orange)}
+.fieldlabel{display:block;color:#c5d0df;font-size:12px;margin:10px 0 4px}
+.value{float:right;color:#c5d0df;font-size:12px}
+.notice{padding:8px;background:#142334;border:1px solid #2a4560;border-radius:5px;color:#b8d8f6;font-size:12px;line-height:1.4}
+.status{height:30px;border-top:1px solid var(--line);background:#121b28;padding:6px 14px;color:#b9c8dc;font-size:12px;display:flex;justify-content:space-between}
+.status b{color:var(--green)}
+.hidden{display:none!important}
+@media(max-width:1150px){
+.app{grid-template-columns:65px 250px minmax(280px,1fr)}
+.rightPanel{display:none}
+.brand{min-width:210px}
+.brand h1{font-size:19px}
+}
+@media(max-width:760px){
+body{height:auto;overflow:auto}
+.app{height:auto;grid-template-columns:55px 1fr}
+.canvasWrap{grid-column:1/-1;height:65vh;grid-row:2}
+.leftPanel{grid-column:2}
+.tools{grid-row:1;grid-column:1}
+.brand{min-width:0}
+.brand small,.topbtns button:nth-child(n+4){display:none}
+header{height:auto;min-height:65px;flex-wrap:wrap}
+.rightPanel{display:block;grid-column:1/-1}
+.app{height:auto}
+.panel{max-height:none}
+}
+</style>
+</head>
+<body>
+<header>
+<div class="brand"><div class="hat">🎩</div><div><h1>MAD HAT <span>2D CAD</span></h1><small>TRACE · DESIGN · CREATE</small></div></div>
+<div style="height:42px;border-left:1px solid #40516a"></div>
+<div class="topbtns">
+<button id="newBtn">＋ New</button>
+<button id="openBtn">📂 Open</button>
+<button id="saveBtn">💾 Save</button>
+<button id="exportSvgTop">⇩ Export SVG</button>
+<button id="exportPng">▧ Export PNG</button>
+</div>
+<div class="spacer"></div>
+<button id="helpBtn" title="Help">ⓘ Help</button>
+<input id="projectInput" type="file" accept=".json,application/json" class="hidden">
+</header>
+
+<div class="app">
+<nav class="panel tools" aria-label="Drawing tools">
+<button class="active" data-tool="select"><span>↖</span>Select</button>
+<button data-tool="pan"><span>✋</span>Pan</button>
+<button data-tool="rect"><span>▱</span>Rectangle</button>
+<button data-tool="ellipse"><span>◯</span>Ellipse</button>
+<button data-tool="line"><span>／</span>Line</button>
+<button data-tool="polygon"><span>⬡</span>Polygon</button>
+<button data-tool="pen"><span>⌁</span>Freehand</button>
+<button data-tool="text"><span>T</span>Text</button>
+<button data-tool="image"><span>▧</span>Image</button>
+<button data-tool="eyedrop"><span>◉</span>Pick colour</button>
+<button id="undoBtn"><span>↶</span>Undo</button>
+<button id="redoBtn"><span>↷</span>Redo</button>
+</nav>
+
+<aside class="panel leftPanel">
+<div class="section">
+<h3>Import & Trace Image</h3>
+<input id="imageInput" type="file" accept="image/*,.svg" class="hidden">
+<button id="chooseImage" class="wide">＋ Import image / SVG</button>
+<div class="muted" style="margin-top:7px">PNG, JPG, GIF, BMP, WEBP or SVG. Raster images can be traced into colour regions.</div>
+<div id="imageInfo" class="notice" style="margin-top:9px">No image imported yet. Import a reference image to start tracing.</div>
+</div>
+
+<div class="section">
+<h3>Image Tracing</h3>
+<label class="fieldlabel">Trace mode</label>
+<div class="row"><button data-mode="bw">Black & White</button><button data-mode="gray">Greyscale</button><button class="active" data-mode="color">Colour</button></div>
+
+<label class="fieldlabel">Colour count <span id="colorsVal" class="value">8</span></label> <input id="colors" type="range" min="2" max="24" value="8">
+
+<label class="fieldlabel">Threshold <span id="thresholdVal" class="value">128</span></label> <input id="threshold" type="range" min="0" max="255" value="128">
+
+<label class="fieldlabel">Noise reduction <span id="noiseVal" class="value">2 px</span></label> <input id="noise" type="range" min="0" max="8" value="2">
+
+<label class="fieldlabel">Simplify <span id="simplifyVal" class="value">2 px</span></label> <input id="simplify" type="range" min="0" max="8" value="2">
+
+<label class="fieldlabel">Outline smoothness <span id="smoothVal" class="value">3</span></label> <input id="smoothness" type="range" min="0" max="8" value="3">
+
+<div class="muted">Higher values round off jagged edges. Start at 3–5 for smooth printable outlines.</div>
+
+<label class="checkbox"><input type="checkbox" id="removeWhite" checked> Ignore near-white background</label> <label class="checkbox"><input type="checkbox" id="invert"> Invert light and dark</label> <label class="checkbox"><input type="checkbox" id="keepReference" checked> Keep original image as reference</label>
+
+<button id="traceBtn" class="wide primary">Trace Image to Smooth Vectors</button> <button id="autoTraceBtn" class="wide">Auto Trace Vector Colour Layers</button>
+
+<div class="muted" style="margin-top:7px">Smoothness is applied to closed contours. For the cleanest results, use high-contrast images and moderate colour counts.</div>
+</div>
+
+<div class="section">
+<h3>Canvas & Document</h3>
+<div class="row"><label for="docW">Width (mm)</label><input id="docW" type="number" min="1" max="2000" value="180"></div>
+<div class="row"><label for="docH">Height (mm)</label><input id="docH" type="number" min="1" max="2000" value="180"></div>
+<label class="checkbox"><input type="checkbox" id="showGrid" checked> Show grid</label>
+<label class="checkbox"><input type="checkbox" id="snapGrid"> Snap to grid</label>
+<label class="fieldlabel">Grid spacing (mm)</label><input id="gridSize" type="number" min="1" max="100" value="5" style="width:100%">
+<button id="fitBtn" class="wide">Fit drawing to view</button>
+</div>
+</aside>
+
+<main class="panel canvasWrap">
+<div class="canvasTop">
+<button id="selectTool" class="active">↖ Select</button>
+<button id="deleteBtn">⌫ Delete</button>
+<button id="duplicateBtn">▣ Duplicate</button>
+<button id="groupBtn">Group</button>
+<button id="ungroupBtn">Ungroup</button>
+<button id="frontBtn">Bring forward</button>
+<button id="backBtn">Send backward</button>
+<span style="flex:1"></span>
+<button id="zoomOut">−</button><button id="zoomLabel">100%</button><button id="zoomIn">＋</button><button id="fitBtn2">Fit</button>
+</div>
+<div class="canvasArea"><canvas id="canvas" width="1200" height="800"></canvas></div>
+<div class="canvasFoot"><span id="canvasCoords">X: 0.0 · Y: 0.0 mm</span><span id="selectionInfo">Nothing selected</span><span id="canvasSize">180 × 180 mm</span></div>
+</main>
+
+<aside class="panel rightPanel">
+<div class="section">
+<h3>Layers & Colours</h3>
+<div id="layerList" class="layerList"></div>
+<div class="row"><button id="addLayer">＋ Layer</button><button id="deleteLayer">Delete layer</button></div>
+<div class="row"><button id="layerUp">↑ Move up</button><button id="layerDown">↓ Move down</button></div>
+</div>
+
+<div class="section">
+<h3>Shape Properties</h3>
+<div id="noSelection" class="muted">Select a shape to edit its position, size, colour and outline.</div>
+<div id="properties" class="hidden">
+<label class="fieldlabel">Name</label><input id="shapeName" type="text" style="width:100%">
+<div class="row"><label>X (mm)</label><input id="shapeX" type="number" step=".1"><label>Y (mm)</label><input id="shapeY" type="number" step=".1"></div>
+<div class="row"><label>W (mm)</label><input id="shapeW" type="number" min=".1" step=".1"><label>H (mm)</label><input id="shapeH" type="number" min=".1" step=".1"></div>
+<div class="row"><label>Fill</label><input id="shapeColor" type="color"><label>Stroke</label><input id="strokeColor" type="color"></div>
+<div class="row"><label>Stroke width</label><input id="strokeWidth" type="number" min="0" max="20" step=".2" value="0"></div>
+<label class="checkbox"><input id="shapeVisible" type="checkbox" checked> Visible</label>
+<label class="checkbox"><input id="shapeLocked" type="checkbox"> Lock position</label>
+<button id="applyProps" class="wide primary">Apply properties</button>
+</div>
+</div>
+
+<div class="section">
+<h3>Export for SVG / 3D printing</h3>
+<label class="fieldlabel">Export format</label>
+<select id="exportMode" style="width:100%">
+<option value="combined">Single SVG (all visible shapes)</option>
+<option value="layers">Separate SVG per layer</option>
+<option value="selected">Selected shape only</option>
+</select>
+<label class="checkbox"><input type="checkbox" id="exportColors" checked> Keep fill colours</label>
+<label class="checkbox"><input type="checkbox" id="exportStroke"> Include strokes</label>
+<label class="checkbox"><input type="checkbox" id="exportRef"> Include reference image</label>
+<label class="checkbox"><input type="checkbox" id="exportMm" checked> Set SVG size in millimetres</label>
+<button id="exportSvg" class="wide primary">⇩ Export SVG</button>
+<button id="exportLayers" class="wide">⇩ Export each layer as SVG</button>
+<button id="exportJson" class="wide">Save editable project JSON</button>
+<div class="notice" style="margin-top:9px">SVG preserves vector paths and fill colours. Export separate layers for multicolour printing.</div>
+</div>
+</aside>
+</div>
+
+<footer class="status"><span><b>●</b> <span id="statusText">Ready — import an image or start drawing.</span></span><span>MAD HAT 2D CAD · v1.1</span></footer>
+
+<script>
+(()=>{
+'use strict';
+
+const $=id=>document.getElementById(id);
+const canvas=$('canvas'),ctx=canvas.getContext('2d');
+
+let shapes=[];
+let layers=[{id:1,name:'Layer 1',color:'#62d6bd',visible:true,locked:false}];
+let activeLayer=1,selected=null,selectedIds=[],tool='select',traceMode='color';
+let reference=null,referenceVisible=true,zoom=1,pan={x:0,y:0};
+let drawing=null,drag=null,selectionBox=null,history=[],future=[];
+let nextId=1,nextLayer=2;
+
+const palette=['#62d6bd','#8b9dff','#ffb86b','#ff7c9b','#e8e879','#76b8ff','#bd7cff','#ffffff','#ff5555','#39c4ed','#f0a000','#6fd36f'];
+
+function status(s){$('statusText').textContent=s}
+function docW(){return Math.max(1,+$('docW').value||180)}
+function docH(){return Math.max(1,+$('docH').value||180)}
+function scale(){return Math.min((canvas.clientWidth||800)/docW(),(canvas.clientHeight||600)/docH())*zoom}
+function toScreen(x,y){
+ const s=scale();
+ return{x:(canvas.clientWidth-docW()*s)/2+pan.x+x*s,y:(canvas.clientHeight-docH()*s)/2+pan.y+y*s}
+}
+function toDoc(x,y){
+ const s=scale();
+ return{x:(x-(canvas.clientWidth-docW()*s)/2-pan.x)/s,y:(y-(canvas.clientHeight-docH()*s)/2-pan.y)/s}
+}
+function resize(){
+ const r=canvas.getBoundingClientRect(),d=window.devicePixelRatio||1;
+ canvas.width=Math.max(1,Math.round(r.width*d));
+ canvas.height=Math.max(1,Math.round(r.height*d));
+ ctx.setTransform(d,0,0,d,0,0);
+ render();
+}
+function layer(id){return layers.find(l=>l.id===id)||layers[0]}
+function snapshot(){
+ history.push(JSON.stringify({
+ shapes,layers,activeLayer,selected,selectedIds,nextId,nextLayer,
+ reference:reference?{src:reference.src,w:reference.naturalWidth||reference.width,h:reference.naturalHeight||reference.height}:null,
+ referenceVisible
+ }));
+ if(history.length>60)history.shift();
+ future=[];
+}
+function restore(s){
+ const d=JSON.parse(s);
+ shapes=d.shapes;layers=d.layers;activeLayer=d.activeLayer;
+ selected=d.selected;selectedIds=d.selectedIds||[];
+ nextId=d.nextId;nextLayer=d.nextLayer;
+ reference=null;
+ if(d.reference){
+  const im=new Image();
+  im.onload=()=>render();
+  im.src=d.reference.src;
+  reference=im;
+ }
+ referenceVisible=d.referenceVisible;
+ render();renderLayers();updateProps();
+}
+function undo(){
+ if(!history.length)return;
+ future.push(JSON.stringify({shapes,layers,activeLayer,selected,selectedIds,nextId,nextLayer,reference:reference?{src:reference.src}:null,referenceVisible}));
+ restore(history.pop());status('Undo complete');
+}
+function redo(){
+ if(!future.length)return;
+ history.push(JSON.stringify({shapes,layers,activeLayer,selected,selectedIds,nextId,nextLayer,reference:reference?{src:reference.src}:null,referenceVisible}));
+ restore(future.pop());status('Redo complete');
+}
+function newShape(type,x,y,w,h,extra={}){
+ const s={id:nextId++,type,x,y,w,h,fill:layer(activeLayer).color,stroke:'#101722',strokeWidth:0,layer:activeLayer,name:type+' '+nextId,visible:true,locked:false,...extra};
+ shapes.push(s);selected=s.id;selectedIds=[s.id];return s;
+}
+function shapeById(id){return shapes.find(s=>s.id===id)}
+function visible(s){return s.visible!==false&&layer(s.layer).visible!==false}
+function isSelected(s){return selectedIds.includes(s.id)||selected===s.id}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+function render(){
+ const W=canvas.clientWidth,H=canvas.clientHeight;
+ if(!W||!H)return;
+ ctx.clearRect(0,0,W,H);
+ ctx.fillStyle='#111925';ctx.fillRect(0,0,W,H);
+ const s=scale(),o=toScreen(0,0),dw=docW()*s,dh=docH()*s;
+ ctx.fillStyle='#121d2b';ctx.fillRect(o.x,o.y,dw,dh);
+
+ if($('showGrid').checked){
+  const gs=Math.max(1,+$('gridSize').value||5)*s;
+  ctx.lineWidth=1;
+  for(let x=0,i=0;x<=dw;x+=gs,i++){
+   ctx.strokeStyle=i%5===0?'#2b3b50':'#1d2a3b';
+   ctx.beginPath();ctx.moveTo(o.x+x,o.y);ctx.lineTo(o.x+x,o.y+dh);ctx.stroke();
+  }
+  for(let y=0,i=0;y<=dh;y+=gs,i++){
+   ctx.strokeStyle=i%5===0?'#2b3b50':'#1d2a3b';
+   ctx.beginPath();ctx.moveTo(o.x,o.y+y);ctx.lineTo(o.x+dw,o.y+y);ctx.stroke();
+  }
+ }
+
+ ctx.save();ctx.beginPath();ctx.rect(o.x,o.y,dw,dh);ctx.clip();
+
+ if(reference&&referenceVisible&&$('keepReference').checked){
+  try{ctx.globalAlpha=.65;ctx.drawImage(reference,o.x,o.y,dw,dh);ctx.globalAlpha=1}catch(e){}
+ }
+
+ for(const sh of shapes){if(visible(sh))drawShape(sh,false)}
+ if(drawing)drawShape(drawing,true);
+
+ for(const id of selectedIds){
+  const sel=shapeById(id);if(!sel||!visible(sel))continue;
+  const p=toScreen(sel.x,sel.y),q=toScreen(sel.x+sel.w,sel.y+sel.h);
+  ctx.save();ctx.strokeStyle='#58a6ff';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);
+  ctx.strokeRect(p.x,p.y,q.x-p.x,q.y-p.y);ctx.setLineDash([]);
+  for(const [x,y] of [[p.x,p.y],[q.x,p.y],[q.x,q.y],[p.x,q.y]]){
+   ctx.fillStyle='#fff';ctx.strokeStyle='#58a6ff';
+   ctx.fillRect(x-4,y-4,8,8);ctx.strokeRect(x-4,y-4,8,8);
+  }
+  ctx.restore();
+ }
+
+ if(selectionBox){
+  const a=toScreen(selectionBox.x1,selectionBox.y1),b=toScreen(selectionBox.x2,selectionBox.y2);
+  ctx.save();ctx.fillStyle='rgba(88,166,255,.12)';ctx.strokeStyle='#58a6ff';
+  ctx.setLineDash([5,3]);ctx.fillRect(a.x,a.y,b.x-a.x,b.y-a.y);
+  ctx.strokeRect(a.x,a.y,b.x-a.x,b.y-a.y);ctx.restore();
+ }
+ ctx.restore();
+ ctx.strokeStyle='#60758e';ctx.lineWidth=1;ctx.strokeRect(o.x,o.y,dw,dh);
+
+ $('zoomLabel').textContent=Math.round(zoom*100)+'%';
+ $('canvasSize').textContent=docW()+' × '+docH()+' mm';
+ const sel=shapeById(selected);
+ $('selectionInfo').textContent=selectedIds.length>1?`${selectedIds.length} shapes selected`:sel?sel.name+' · '+sel.w.toFixed(1)+' × '+sel.h.toFixed(1)+' mm':'Nothing selected';
+}
+
+function drawShape(sh,preview){
+ const p=toScreen(sh.x,sh.y),q=toScreen(sh.x+sh.w,sh.y+sh.h);
+ const w=q.x-p.x,h=q.y-p.y;
+ ctx.save();
+ ctx.globalAlpha=preview?.7:1;
+ ctx.fillStyle=sh.fill||'#62d6bd';
+ ctx.strokeStyle=sh.stroke||'#101722';
+ ctx.lineWidth=(+sh.strokeWidth||0)*scale();
+ ctx.beginPath();
+
+ if(sh.type==='rect'||sh.type==='image'){
+  ctx.rect(p.x,p.y,w,h);
+ }else if(sh.type==='ellipse'){
+  ctx.ellipse(p.x+w/2,p.y+h/2,Math.abs(w/2),Math.abs(h/2),0,0,Math.PI*2);
+ }else if(sh.type==='line'){
+  ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);
+ }else if(sh.type==='polygon'){
+  const pts=sh.points||[[0,1],[.5,0],[1,1]];
+  pts.forEach((v,i)=>i?ctx.lineTo(p.x+v[0]*w,p.y+v[1]*h):ctx.moveTo(p.x+v[0]*w,p.y+v[1]*h));
+  ctx.closePath();
+ }else if(sh.type==='freehand'&&sh.points){
+  sh.points.forEach((v,i)=>{
+   const pt=toScreen(v[0],v[1]);
+   if(i)ctx.lineTo(pt.x,pt.y);else ctx.moveTo(pt.x,pt.y);
+  });
+ }else if(sh.type==='text'){
+  ctx.font=`${Math.max(8,Math.abs(h))}px Arial`;
+  ctx.fillText(sh.text||'Text',p.x,p.y+Math.abs(h));
+ }
+
+ if(sh.type==='line'||sh.type==='freehand'){
+  ctx.lineWidth=Math.max(1,(sh.strokeWidth||.5)*scale());
+  ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();
+ }else{
+  if(sh.type!=='text'&&sh.type!=='image'&&sh.fill!=='none')ctx.fill();
+  if(sh.strokeWidth>0||sh.fill==='none'){
+   ctx.strokeStyle=sh.stroke||'#ffffff';
+   ctx.lineWidth=Math.max(1,(sh.strokeWidth||.5)*scale());
+   ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();
+  }
+ }
+ if(sh.type==='image'&&sh.img){
+  try{ctx.drawImage(sh.img,p.x,p.y,w,h)}catch(e){}
+ }
+ ctx.restore();
+}
+
+function pointIn(sh,p){
+ return p.x>=Math.min(sh.x,sh.x+sh.w)&&p.x<=Math.max(sh.x,sh.x+sh.w)&&p.y>=Math.min(sh.y,sh.y+sh.h)&&p.y<=Math.max(sh.y,sh.y+sh.h);
+}
+function pick(p){
+ for(let i=shapes.length-1;i>=0;i--){
+  const s=shapes[i];if(visible(s)&&pointIn(s,p))return s;
+ }
+ return null;
+}
+
+function renderLayers(){
+ const el=$('layerList');el.innerHTML='';
+ layers.slice().reverse().forEach(l=>{
+  const row=document.createElement('div');
+  row.className='layer'+(l.id===activeLayer?' selected':'');
+  row.innerHTML=`<button title="Toggle visibility">${l.visible?'◉':'○'}</button><span class="swatch" style="background:${l.color}"></span><span class="lname" title="${esc(l.name)}">${esc(l.name)}</span><input type="color" value="${l.color}" title="Layer colour"><button title="Lock layer">${l.locked?'🔒':'🔓'}</button>`;
+  const bs=row.querySelectorAll('button');
+  bs[0].onclick=()=>{l.visible=!l.visible;renderLayers();render()};
+  row.querySelector('.lname').onclick=()=>{activeLayer=l.id;selected=null;selectedIds=[];renderLayers();updateProps();render()};
+  row.querySelector('input').oninput=e=>{l.color=e.target.value;shapes.filter(s=>s.layer===l.id).forEach(s=>s.fill=l.color);render()};
+  bs[1].onclick=()=>{l.locked=!l.locked;renderLayers()};
+  el.appendChild(row);
+ });
+}
+
+function updateProps(){
+ const s=shapeById(selected),has=!!s;
+ $('properties').classList.toggle('hidden',!has);
+ $('noSelection').classList.toggle('hidden',has);
+ if(!s)return;
+ for(const [id,v] of [['shapeName',s.name],['shapeX',s.x],['shapeY',s.y],['shapeW',s.w],['shapeH',s.h],['shapeColor',s.fill==='none'?'#ffffff':s.fill],['strokeColor',s.stroke],['strokeWidth',s.strokeWidth],['shapeVisible',s.visible!==false],['shapeLocked',!!s.locked]]){
+  if($(id).type==='checkbox')$(id).checked=v;else $(id).value=v;
+ }
+}
+
+function setTool(t){
+ tool=t;
+ document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));
+ $('selectTool').classList.toggle('active',t==='select');
+ canvas.style.cursor=t==='pan'?'grab':t==='select'?'default':'crosshair';
+}
+function pointer(e){
+ const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};
+}
+function snap(p){
+ if(!$('snapGrid').checked)return p;
+ const g=+$('gridSize').value||5;
+ return{x:Math.round(p.x/g)*g,y:Math.round(p.y/g)*g};
+}
+
+canvas.addEventListener('pointerdown',e=>{
+ canvas.setPointerCapture(e.pointerId);
+ const sc=pointer(e),p=snap(toDoc(sc.x,sc.y));
+
+ if(tool==='pan'){drag={kind:'pan',sx:sc.x,sy:sc.y,px:pan.x,py:pan.y};return}
+ if(tool==='eyedrop'){const s=pick(p);if(s){layer(activeLayer).color=s.fill;renderLayers()}setTool('select');return}
+ if(tool==='image'){$('imageInput').click();return}
+
+ if(tool==='text'){
+  const t=prompt('Text to add:','Text');
+  if(t){snapshot();const sh=newShape('text',p.x,p.y,Math.max(10,t.length*4),8,{text:t,fill:layer(activeLayer).color});updateProps();render()}
+  setTool('select');return;
+ }
+
+ if(tool==='select'){
+  const hit=pick(p);
+  if(hit){
+   selected=hit.id;selectedIds=[hit.id];
+   if(!hit.locked&&!layer(hit.layer).locked)drag={kind:'move',sx:p.x,sy:p.y,ox:hit.x,oy:hit.y,id:hit.id};
+  }else{
+   selected=null;selectedIds=[];
+   selectionBox={x1:p.x,y1:p.y,x2:p.x,y2:p.y};
+   drag={kind:'selectBox'};
+  }
+  updateProps();renderLayers();render();return;
+ }
+
+ if(layer(activeLayer).locked){status('This layer is locked. Unlock it to draw.');return}
+ snapshot();
+ drawing={
+  id:nextId++,type:tool==='pen'?'freehand':tool,x:p.x,y:p.y,w:0,h:0,
+  fill:layer(activeLayer).color,stroke:'#101722',
+  strokeWidth:tool==='line'||tool==='pen'?.5:0,
+  layer:activeLayer,name:tool+' '+nextId,visible:true,
+  points:tool==='polygon'?[[0,1],[.5,0],[1,1]]:tool==='pen'?[[p.x,p.y]]:undefined
+ };
+ if(tool==='polygon'){drawing.w=20;drawing.h=20}
+});
+
+canvas.addEventListener('pointermove',e=>{
+ const sc=pointer(e),p=toDoc(sc.x,sc.y);
+ $('canvasCoords').textContent=`X: ${p.x.toFixed(1)} · Y: ${p.y.toFixed(1)} mm`;
+
+ if(!drag&&drawing){
+  const q=snap(p);
+  drawing.w=q.x-drawing.x;drawing.h=q.y-drawing.y;
+  if(drawing.type==='freehand')drawing.points.push([q.x,q.y]);
+  render();return;
+ }
+ if(!drag)return;
+
+ if(drag.kind==='pan'){
+  pan.x=drag.px+(sc.x-drag.sx);pan.y=drag.py+(sc.y-drag.sy);render();return;
+ }
+ if(drag.kind==='selectBox'){
+  selectionBox.x2=p.x;selectionBox.y2=p.y;render();return;
+ }
+ if(drag.kind==='move'){
+  const sh=shapeById(drag.id);
+  if(sh){sh.x=drag.ox+(p.x-drag.sx);sh.y=drag.oy+(p.y-drag.sy);render()}
+ }
+});
+
+canvas.addEventListener('pointerup',()=>{
+ if(drawing){
+  if(Math.abs(drawing.w)<.2)drawing.w=tool==='polygon'?20:5;
+  if(Math.abs(drawing.h)<.2)drawing.h=tool==='polygon'?20:5;
+  if(drawing.w<0){drawing.x+=drawing.w;drawing.w=Math.abs(drawing.w)}
+  if(drawing.h<0){drawing.y+=drawing.h;drawing.h=Math.abs(drawing.h)}
+  shapes.push(drawing);selected=drawing.id;selectedIds=[drawing.id];
+  drawing=null;renderLayers();updateProps();render();status('Shape created');
+ }
+
+ if(drag&&drag.kind==='selectBox'&&selectionBox){
+  const x1=Math.min(selectionBox.x1,selectionBox.x2),x2=Math.max(selectionBox.x1,selectionBox.x2);
+  const y1=Math.min(selectionBox.y1,selectionBox.y2),y2=Math.max(selectionBox.y1,selectionBox.y2);
+  if(Math.abs(x2-x1)>.5||Math.abs(y2-y1)>.5){
+   selectedIds=shapes.filter(sh=>visible(sh)&&!sh.locked&&!layer(sh.layer).locked&&sh.x>=x1&&sh.y>=y1&&sh.x+sh.w<=x2&&sh.y+sh.h<=y2).map(sh=>sh.id);
+   selected=selectedIds.length?selectedIds[selectedIds.length-1]:null;
+   status(selectedIds.length?`${selectedIds.length} shapes selected`:'No shapes inside selection box');
+  }
+  selectionBox=null;updateProps();renderLayers();render();
+ }
+ if(drag&&drag.kind==='move'){render();updateProps()}
+ drag=null;
+});
+
+canvas.addEventListener('dblclick',()=>{if(tool==='polygon')setTool('select')});
+canvas.addEventListener('wheel',e=>{
+ e.preventDefault();
+ zoom=Math.max(.15,Math.min(8,zoom*(e.deltaY<0?1.1:.9)));
+ render();
+},{passive:false});
+
+document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+$('selectTool').onclick=()=>setTool('select');
+$('undoBtn').onclick=undo;
+$('redoBtn').onclick=redo;
+
+$('newBtn').onclick=()=>{
+ if(!confirm('Start a new drawing? Unsaved changes will be lost.'))return;
+ shapes=[];layers=[{id:1,name:'Layer 1',color:'#62d6bd',visible:true,locked:false}];
+ activeLayer=1;selected=null;selectedIds=[];reference=null;nextId=1;nextLayer=2;
+ history=[];future=[];zoom=1;pan={x:0,y:0};
+ renderLayers();updateProps();render();status('New drawing created');
+};
+
+$('openBtn').onclick=()=>$('projectInput').click();
+$('projectInput').onchange=async e=>{
+ const f=e.target.files[0];if(!f)return;
+ try{
+  const d=JSON.parse(await f.text());
+  snapshot();shapes=d.shapes||[];layers=d.layers||layers;
+  activeLayer=d.activeLayer||layers[0].id;
+  nextId=d.nextId||Math.max(0,...shapes.map(s=>s.id))+1;
+  nextLayer=d.nextLayer||Math.max(0,...layers.map(l=>l.id))+1;
+  if(d.document){$('docW').value=d.document.width||180;$('docH').value=d.document.height||180}
+  selected=null;selectedIds=[];renderLayers();updateProps();render();status('Project opened');
+ }catch(err){alert('Could not open project JSON.')}
+ e.target.value='';
+};
+
+$('saveBtn').onclick=saveProject;
+$('exportJson').onclick=saveProject;
+function saveProject(){
+ const data={version:1,document:{width:docW(),height:docH()},shapes,layers,activeLayer,nextId,nextLayer};
+ download(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),'mad-hat-2d-cad-project.json');
+ status('Editable project saved');
+}
+
+$('addLayer').onclick=()=>{
+ snapshot();
+ const id=nextLayer++;
+ const l={id,name:'Layer '+id,color:palette[(layers.length)%palette.length],visible:true,locked:false};
+ layers.push(l);activeLayer=l.id;renderLayers();status('Layer added');
+};
+$('deleteLayer').onclick=()=>{
+ if(layers.length<2){alert('Keep at least one layer.');return}
+ snapshot();
+ const idx=layers.findIndex(l=>l.id===activeLayer);
+ shapes=shapes.filter(s=>s.layer!==activeLayer);
+ layers=layers.filter(l=>l.id!==activeLayer);
+ activeLayer=layers[Math.max(0,idx-1)].id;
+ selected=null;selectedIds=[];renderLayers();updateProps();render();
+};
+$('layerUp').onclick=()=>{
+ const i=layers.findIndex(l=>l.id===activeLayer);
+ if(i<layers.length-1){snapshot();[layers[i],layers[i+1]]=[layers[i+1],layers[i]];renderLayers();render()}
+};
+$('layerDown').onclick=()=>{
+ const i=layers.findIndex(l=>l.id===activeLayer);
+ if(i>0){snapshot();[layers[i],layers[i-1]]=[layers[i-1],layers[i]];renderLayers();render()}
+};
+
+$('deleteBtn').onclick=()=>{
+ const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
+ if(!ids.length)return;
+ snapshot();shapes=shapes.filter(s=>!ids.includes(s.id));selected=null;selectedIds=[];
+ updateProps();render();status('Selected shapes deleted');
+};
+$('duplicateBtn').onclick=()=>{
+ const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
+ if(!ids.length)return;
+ snapshot();
+ const copies=shapes.filter(s=>ids.includes(s.id)).map(s=>{
+  const c=JSON.parse(JSON.stringify(s));c.id=nextId++;c.name=s.name+' copy';c.x+=3;c.y+=3;return c;
+ });
+ shapes.push(...copies);selectedIds=copies.map(c=>c.id);selected=selectedIds[selectedIds.length-1];
+ updateProps();render();status('Selected shapes duplicated');
+};
+$('groupBtn').onclick=()=>{
+ const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
+ if(!ids.length)return;
+ snapshot();shapes.filter(s=>ids.includes(s.id)).forEach(s=>s.group='Group 1');
+ status(`${ids.length} shape(s) assigned to Group 1`);
+};
+$('ungroupBtn').onclick=()=>{
+ const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
+ if(!ids.length)return;
+ snapshot();shapes.filter(s=>ids.includes(s.id)).forEach(s=>delete s.group);
+ status('Selected shapes ungrouped');
+};
+$('frontBtn').onclick=()=>{
+ const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
+ if(!ids.length)return;
+ snapshot();const chosen=shapes.filter(s=>ids.includes(s.id)),rest=shapes.filter(s=>!ids.includes(s.id));
+ shapes=[...rest,...chosen];render();
+};
+$('backBtn').onclick=()=>{
+ const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
+ if(!ids.length)return;
+ snapshot();const chosen=shapes.filter(s=>ids.includes(s.id)),rest=shapes.filter(s=>!ids.includes(s.id));
+ shapes=[...chosen,...rest];render();
+};
+
+$('shapeVisible').onchange=()=>{
+ const s=shapeById(selected);if(s){s.visible=$('shapeVisible').checked;renderLayers();render()}
+};
+$('applyProps').onclick=()=>{
+ const s=shapeById(selected);if(!s)return;
+ snapshot();s.name=$('shapeName').value||'Shape';
+ for(const [k,id] of [['x','shapeX'],['y','shapeY'],['w','shapeW'],['h','shapeH'],['strokeWidth','strokeWidth']])s[k]=+$(id).value||0;
+ s.w=Math.max(.1,s.w);s.h=Math.max(.1,s.h);
+ s.fill=$('shapeColor').value;s.stroke=$('strokeColor').value;
+ s.visible=$('shapeVisible').checked;s.locked=$('shapeLocked').checked;
+ renderLayers();updateProps();render();status('Shape properties updated');
+};
+
+$('zoomIn').onclick=()=>{zoom=Math.min(8,zoom*1.2);render()};
+$('zoomOut').onclick=()=>{zoom=Math.max(.15,zoom/1.2);render()};
+$('fitBtn').onclick=$('fitBtn2').onclick=()=>{zoom=1;pan={x:0,y:0};render()};
+$('showGrid').onchange=render;
+$('snapGrid').onchange=()=>status($('snapGrid').checked?'Grid snapping enabled':'Grid snapping disabled');
+$('gridSize').oninput=render;
+$('docW').onchange=()=>{render();status('Document width updated')};
+$('docH').onchange=()=>{render();status('Document height updated')};
+
+$('chooseImage').onclick=()=>$('imageInput').click();
+$('imageInput').onchange=e=>{
+ const f=e.target.files[0];if(!f)return;
+ if(f.type==='image/svg+xml'||f.name.toLowerCase().endsWith('.svg')){
+  const r=new FileReader();r.onload=()=>loadSvgReference(r.result,f.name);r.readAsText(f);
+ }else{
+  const r=new FileReader();
+  r.onload=()=>{
+   const im=new Image();
+   im.onload=()=>{
+    reference=im;referenceVisible=true;
+    $('imageInfo').textContent=`Loaded ${f.name} · ${im.naturalWidth} × ${im.naturalHeight}px`;
+    $('keepReference').checked=true;render();
+    status('Image loaded — adjust tracing settings and click Trace');
+   };
+   im.src=r.result;
+  };
+  r.readAsDataURL(f);
+ }
+ e.target.value='';
+};
+function loadSvgReference(text,name){
+ const blob=new Blob([text],{type:'image/svg+xml'});
+ const url=URL.createObjectURL(blob),im=new Image();
+ im.onload=()=>{
+  reference=im;referenceVisible=true;
+  $('imageInfo').textContent=`Loaded ${name} · SVG reference`;
+  render();status('SVG loaded as reference');
+  URL.revokeObjectURL(url);
+ };
+ im.onerror=()=>{alert('Could not load this SVG.');URL.revokeObjectURL(url)};
+ im.src=url;
+}
+
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{
+ traceMode=b.dataset.mode;
+ document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('active',x===b));
+});
+for(const [id,out,suffix] of [['colors','colorsVal',''],['threshold','thresholdVal',''],['noise','noiseVal',' px'],['simplify','simplifyVal',' px'],['smoothness','smoothVal','']]){
+ $(id).oninput=()=>$(out).textContent=$(id).value+suffix;
+}
+$('keepReference').onchange=()=>{referenceVisible=$('keepReference').checked;render()};
+$('traceBtn').onclick=()=>traceImage(false);
+$('autoTraceBtn').onclick=()=>traceImage(true);
+
+/* ==========================================================
+   SMOOTH VECTOR TRACING
+   1. Quantise the raster image into colour regions.
+   2. Trace the boundaries of each region.
+   3. Simplify pixel stair-steps.
+   4. Smooth closed contours with Chaikin subdivision.
+   5. Export the resulting contours as editable SVG polygons.
+   ========================================================== */
+
+function traceImage(auto){
+ if(!reference){alert('Import an image first.');return}
+ const w=reference.naturalWidth||reference.width;
+ const h=reference.naturalHeight||reference.height;
+ if(!w||!h)return;
+
+ // Higher tracing resolution retains finer features and reduces blocky contours.
+ const max=700;
+ const ratio=Math.min(1,max/Math.max(w,h));
+ const tw=Math.max(1,Math.round(w*ratio));
+ const th=Math.max(1,Math.round(h*ratio));
+
+ const tmp=document.createElement('canvas');
+ tmp.width=tw;tmp.height=th;
+ const tc=tmp.getContext('2d',{willReadFrequently:true});
+ tc.drawImage(reference,0,0,tw,th);
+ const data=tc.getImageData(0,0,tw,th).data;
+
+ const mode=traceMode;
+ const threshold=+$('threshold').value;
+ const remove=$('removeWhite').checked;
+ const invert=$('invert').checked;
+ const n=mode==='bw'?2:mode==='gray'?Math.min(8,+$('colors').value):+$('colors').value;
+ const noise=+$('noise').value;
+ const simplify=+$('simplify').value;
+ const smooth=+$('smoothness').value;
+
+ const rgb=new Array(tw*th);
+ const hist=new Map();
+
+ function quant(v){
+  const step=256/Math.max(2,n);
+  return Math.max(0,Math.min(255,Math.round(Math.round(v/step)*step)));
+ }
+
+ for(let i=0;i<tw*th;i++){
+  let r=data[i*4],g=data[i*4+1],b=data[i*4+2],a=data[i*4+3];
+
+  if(a<35||(remove&&r>245&&g>245&&b>245)){
+   rgb[i]=null;continue;
+  }
+
+  if(mode==='bw'){
+   let v=(.299*r+.587*g+.114*b)>=threshold?255:0;
+   if(invert)v=255-v;
+   r=g=b=v;
+  }else if(mode==='gray'){
+   let v=Math.round(.299*r+.587*g+.114*b);
+   if(invert)v=255-v;
+   r=g=b=v;
+  }else{
+   r=quant(r);g=quant(g);b=quant(b);
+   if(invert){r=255-r;g=255-g;b=255-b}
+  }
+
+  const key=`${r},${g},${b}`;
+  rgb[i]=key;
+  hist.set(key,(hist.get(key)||0)+1);
+ }
+
+ const top=[...hist.entries()]
+  .sort((a,b)=>b[1]-a[1])
+  .slice(0,n)
+  .map(e=>e[0]);
+
+ if(!top.length){
+  alert('No traceable pixels found. Try unchecking Ignore near-white background.');
+  return;
+ }
+
+ const colours=top.map(k=>k.split(',').map(Number));
+ const labels=new Int16Array(tw*th);
+ labels.fill(-1);
+
+ // Assign every non-transparent pixel to its nearest retained colour.
+ for(let i=0;i<rgb.length;i++){
+  if(rgb[i]===null)continue;
+  const c=rgb[i].split(',').map(Number);
+  let best=-1,bd=Infinity;
+  for(let j=0;j<colours.length;j++){
+   const q=colours[j];
+   const d=(c[0]-q[0])**2+(c[1]-q[1])**2+(c[2]-q[2])**2;
+   if(d<bd){bd=d;best=j}
+  }
+  labels[i]=best;
+ }
+
+ // Majority-filter isolated noisy pixels.
+ if(noise>0){
+  const old=labels.slice();
+  for(let y=1;y<th-1;y++){
+   for(let x=1;x<tw-1;x++){
+    const idx=y*tw+x;
+    if(old[idx]<0)continue;
+    const counts=new Map();
+    for(let yy=-1;yy<=1;yy++){
+     for(let xx=-1;xx<=1;xx++){
+      const v=old[(y+yy)*tw+x+xx];
+      if(v>=0)counts.set(v,(counts.get(v)||0)+1);
+     }
+    }
+    let best=old[idx],cnt=0;
+    for(const [k,v] of counts)if(v>cnt){best=k;cnt=v}
+    if(cnt>=5)labels[idx]=best;
+   }
+  }
+ }
+
+ // Trace pixel-region boundaries as closed loops.
+ function traceLoops(ci){
+  const edges=[];
+  const key=(x,y)=>x+','+y;
+
+  for(let y=0;y<th;y++){
+   for(let x=0;x<tw;x++){
+    if(labels[y*tw+x]!==ci)continue;
+
+    if(y===0||labels[(y-1)*tw+x]!==ci)edges.push([x,y,x+1,y]);
+    if(x===tw-1||labels[y*tw+x+1]!==ci)edges.push([x+1,y,x+1,y+1]);
+    if(y===th-1||labels[(y+1)*tw+x]!==ci)edges.push([x+1,y+1,x,y+1]);
+    if(x===0||labels[y*tw+x-1]!==ci)edges.push([x,y+1,x,y]);
+   }
+  }
+
+  const starts=new Map();
+  edges.forEach((e,i)=>{
+   const k=key(e[0],e[1]);
+   if(!starts.has(k))starts.set(k,[]);
+   starts.get(k).push(i);
+  });
+
+  const used=new Uint8Array(edges.length),loops=[];
+
+  for(let i=0;i<edges.length;i++){
+   if(used[i])continue;
+
+   let e=edges[i],pts=[[e[0],e[1]]],cur=i,guard=0;
+
+   while(cur!==-1&&!used[cur]&&guard++<edges.length+1){
+    used[cur]=1;
+    e=edges[cur];
+    pts.push([e[2],e[3]]);
+
+    if(e[2]===pts[0][0]&&e[3]===pts[0][1])break;
+
+    const cand=starts.get(key(e[2],e[3]))||[];
+    cur=-1;
+
+    // At ambiguous junctions, prefer the continuation that keeps the
+    // boundary following the same connected pixel region.
+    let bestTurn=-Infinity;
+    const incomingX=e[2]-e[0],incomingY=e[3]-e[1];
+
+    for(const ci2 of cand){
+     if(used[ci2])continue;
+     const ne=edges[ci2];
+     const dx=ne[2]-ne[0],dy=ne[3]-ne[1];
+     const cross=incomingX*dy-incomingY*dx;
+     const dot=incomingX*dx+incomingY*dy;
+     const turn=Math.atan2(cross,dot);
+     if(cur===-1||turn>bestTurn){cur=ci2;bestTurn=turn}
+    }
+   }
+
+   if(pts.length>=5&&pts[0][0]===pts[pts.length-1][0]&&pts[0][1]===pts[pts.length-1][1]){
+    pts.pop();
+
+    // Remove redundant collinear pixel-boundary points.
+    const clean=pts.filter((p,j)=>{
+     const a=pts[(j-1+pts.length)%pts.length],b=pts[(j+1)%pts.length];
+     return (p[0]-a[0])*(b[1]-p[1])!==(p[1]-a[1])*(b[0]-p[0]);
+    });
+
+    if(clean.length>=3)loops.push(clean);
+   }
+  }
+  return loops;
+ }
+
+ // Douglas-Peucker simplification for closed contours.
+ function simplifyLoop(points,tol){
+  if(tol<=0||points.length<5)return points;
+
+  let far=1,best=0;
+  for(let i=1;i<points.length;i++){
+   const d=(points[i][0]-points[0][0])**2+(points[i][1]-points[0][1])**2;
+   if(d>best){best=d;far=i}
+  }
+
+  const open=points.slice(0,far+1);
+  const open2=points.slice(far).concat([points[0]]);
+
+  function rdp(a,eps){
+   if(a.length<3)return a;
+
+   const A=a[0],B=a[a.length-1];
+   const dx=B[0]-A[0],dy=B[1]-A[1];
+   const den=dx*dx+dy*dy;
+   let mi=0,md=0;
+
+   for(let i=1;i<a.length-1;i++){
+    const t=den?Math.max(0,Math.min(1,((a[i][0]-A[0])*dx+(a[i][1]-A[1])*dy)/den)):0;
+    const d=(a[i][0]-(A[0]+t*dx))**2+(a[i][1]-(A[1]+t*dy))**2;
+    if(d>md){md=d;mi=i}
+   }
+
+   if(md>eps*eps){
+    const l=rdp(a.slice(0,mi+1),eps);
+    const r=rdp(a.slice(mi),eps);
+    return l.slice(0,-1).concat(r);
+   }
+   return [A,B];
+  }
+
+  const a=rdp(open,tol);
+  const b=rdp(open2,tol);
+  const out=a.slice(0,-1).concat(b.slice(0,-1));
+  return out.length>=3?out:points;
+ }
+
+ // Chaikin corner-cutting smooths the contour into rounded vector geometry.
+ // Closed loops stay closed, and each iteration doubles the point count.
+ function smoothLoop(points,iterations){
+  if(iterations<=0||points.length<4)return points;
+
+  let pts=points.map(p=>[p[0],p[1]]);
+
+  // Avoid excessive point counts on large, detailed images.
+  iterations=Math.min(iterations,6);
+
+  for(let k=0;k<iterations;k++){
+   const next=[];
+   for(let i=0;i<pts.length;i++){
+    const a=pts[i],b=pts[(i+1)%pts.length];
+    next.push(
+     [0.75*a[0]+0.25*b[0],0.75*a[1]+0.25*b[1]],
+     [0.25*a[0]+0.75*b[0],0.25*a[1]+0.75*b[1]]
+    );
+   }
+   pts=next;
+  }
+
+  return pts;
+ }
+
+ snapshot();
+
+ // Preserve aspect ratio and centre the traced image within the document.
+ const mmPerPx=Math.min(docW()/tw,docH()/th);
+ const offsetX=(docW()-tw*mmPerPx)/2;
+ const offsetY=(docH()-th*mmPerPx)/2;
+ const baseLayer=activeLayer;
+ const traceLayers=[];
+
+ if(auto){
+  for(let i=0;i<top.length;i++){
+   const c=colours[i];
+   const col='#'+c.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
+   const id=nextLayer++;
+   layers.push({id,name:'Trace '+(i+1),color:col,visible:true,locked:false});
+   traceLayers.push(id);
+  }
+ }
+
+ let added=0;
+
+ for(let ci=0;ci<top.length;ci++){
+  let pixels=0;
+  for(let i=0;i<labels.length;i++)if(labels[i]===ci)pixels++;
+
+  if(pixels<Math.max(3,noise*noise))continue;
+
+  const col='#'+colours[ci].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
+  const layerId=auto?traceLayers[ci]:baseLayer;
+  const loops=traceLoops(ci);
+
+  for(const loop of loops){
+   if(loop.length<3)continue;
+
+   // Simplify first to remove the pixel-staircase before smoothing.
+   let pts=simplifyLoop(loop,simplify);
+
+   // Apply the adjustable corner-rounding operation.
+   pts=smoothLoop(pts,smooth);
+
+   if(pts.length<3)continue;
+
+   const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
+   const minX=Math.min(...xs),maxX=Math.max(...xs);
+   const minY=Math.min(...ys),maxY=Math.max(...ys);
+   const bw=maxX-minX,bh=maxY-minY;
+
+   if(bw*bh<Math.max(2,noise*noise))continue;
+
+   const normalized=pts.map(p=>[(p[0]-minX)/(bw||1),(p[1]-minY)/(bh||1)]);
+
+   shapes.push({
+    id:nextId++,
+    type:'polygon',
+    x:offsetX+minX*mmPerPx,
+    y:offsetY+minY*mmPerPx,
+    w:bw*mmPerPx,
+    h:bh*mmPerPx,
+    points:normalized,
+fill:'none',
+stroke:'#ffffff',
+strokeWidth:.25,
+    layer:layerId,
+    name:`Trace ${ci+1} contour ${added+1}`,
+    visible:true,
+    locked:false
+   });
+   added++;
+  }
+ }
+
+ if(auto&&traceLayers.length)activeLayer=traceLayers[0];
+
+ selected=null;selectedIds=[];
+ renderLayers();updateProps();render();
+
+ status(`Smooth trace complete: ${added} contours across ${top.length} colour groups. Smoothness: ${smooth}.`);
+}
+
+function download(blob,name){
+ const a=document.createElement('a'),url=URL.createObjectURL(blob);
+ a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function xml(s){
+ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+}
+function svgString(list,includeRef=false){
+ const mm=$('exportMm').checked?'mm':'px';
+ const W=docW(),H=docH();
+ const units=mm==='mm'?1:96/25.4;
+ const parts=[];
+
+ if(includeRef&&reference){
+  try{
+   const temp=document.createElement('canvas');
+   temp.width=reference.naturalWidth||reference.width;
+   temp.height=reference.naturalHeight||reference.height;
+   temp.getContext('2d').drawImage(reference,0,0);
+   parts.push(`<image x="0" y="0" width="${W}" height="${H}" href="${temp.toDataURL('image/png')}"/>`);
+  }catch(e){}
+ }
+
+ for(const sh of list){
+  if(!visible(sh))continue;
+  const fill=$('exportColors').checked?sh.fill:'none';
+  const stroke=$('exportStroke').checked?sh.stroke:'none';
+  const sw=$('exportStroke').checked?sh.strokeWidth:0;
+  const common=`fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"`;
+
+  if(sh.type==='ellipse'){
+   parts.push(`<ellipse cx="${sh.x+sh.w/2}" cy="${sh.y+sh.h/2}" rx="${Math.abs(sh.w/2)}" ry="${Math.abs(sh.h/2)}" ${common}/>`);
+  }else if(sh.type==='line'){
+   parts.push(`<line x1="${sh.x}" y1="${sh.y}" x2="${sh.x+sh.w}" y2="${sh.y+sh.h}" ${common}/>`);
+  }else if(sh.type==='polygon'){
+   const pts=(sh.points||[[0,1],[.5,0],[1,1]]).map(p=>`${sh.x+p[0]*sh.w},${sh.y+p[1]*sh.h}`).join(' ');
+   parts.push(`<polygon points="${pts}" ${common}/>`);
+  }else if(sh.type==='text'){
+   parts.push(`<text x="${sh.x}" y="${sh.y+sh.h}" font-family="Arial" font-size="${sh.h}" ${common}>${xml(sh.text||'Text')}</text>`);
+  }else if(sh.type==='freehand'&&sh.points){
+   const d=sh.points.map((p,i)=>(i?'L':'M')+p[0]+' '+p[1]).join(' ');
+   parts.push(`<path d="${d}" fill="none" stroke="${sh.stroke||sh.fill}" stroke-width="${Math.max(.5,sh.strokeWidth)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+  }else{
+   parts.push(`<rect x="${Math.min(sh.x,sh.x+sh.w)}" y="${Math.min(sh.y,sh.y+sh.h)}" width="${Math.abs(sh.w)}" height="${Math.abs(sh.h)}" ${common}/>`);
+  }
+ }
+
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W*units}${mm}" height="${H*units}${mm}" viewBox="0 0 ${W} ${H}">\n${parts.join('\n')}\n</svg>`;
+}
+function exportSvg(list=shapes,name='mad-hat-design.svg'){
+ const s=svgString(list,$('exportRef').checked);
+ download(new Blob([s],{type:'image/svg+xml;charset=utf-8'}),name);
+ status('SVG exported');
+}
+$('exportSvg').onclick=$('exportSvgTop').onclick=()=>{
+ const mode=$('exportMode').value;
+ const list=mode==='selected'&&selected?[shapeById(selected)]:shapes;
+ if(mode==='selected'&&!selected){alert('Select a shape first.');return}
+ exportSvg(list,mode==='selected'?'mad-hat-selected.svg':'mad-hat-design.svg');
+};
+$('exportLayers').onclick=()=>{
+ let idx=0;
+ for(const l of layers){
+  const list=shapes.filter(s=>s.layer===l.id);
+  if(!list.length)continue;
+  exportSvg(list,`mad-hat-${safeName(l.name)}.svg`);idx++;
+ }
+ if(!idx)alert('There are no shapes to export yet.');
+ else status(`Started export for ${idx} layers. Your browser may ask to allow multiple downloads.`);
+};
+function safeName(s){return String(s).toLowerCase().replace(/[^a-z0-9-_]+/g,'-').replace(/^-|-$/g,'')||'layer'}
+
+$('exportPng').onclick=()=>{
+ const a=document.createElement('a');
+ a.download='mad-hat-design.png';a.href=canvas.toDataURL('image/png');a.click();
+ status('Canvas preview exported as PNG');
+};
+
+$('helpBtn').onclick=()=>alert(
+ 'MAD HAT 2D CAD — Quick start\n\n'+
+ '1. Import a reference image.\n'+
+ '2. Choose a trace mode and colour count.\n'+
+ '3. Set Simplify and Outline smoothness.\n'+
+ '4. Click Trace Image to create editable vector contours.\n'+
+ '5. Use the drawing tools and properties to edit shapes.\n'+
+ '6. Use layers to separate print colours.\n'+
+ '7. Export SVG or separate layer SVGs.\n\n'+
+ 'Smoothness 0 keeps the original corners. Higher values apply more corner-cutting for rounded outlines. Very high values may soften sharp tips and small details.'
+);
+
+document.addEventListener('keydown',e=>{
+ if(e.target.matches('input,textarea,select'))return;
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo()}
+ else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo()}
+ else if(e.key==='Delete'||e.key==='Backspace')$('deleteBtn').click();
+ else if(e.key==='Escape'){drawing=null;drag=null;selectionBox=null;setTool('select');render()}
+});
+
+window.addEventListener('resize',resize);
+renderLayers();resize();
+status('Ready — import an image or start drawing.');
+
+})();
+</script>
+
+</body>
+</html>
