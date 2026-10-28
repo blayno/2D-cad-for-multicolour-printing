@@ -544,7 +544,7 @@ canvas.addEventListener('pointerdown',e=>{
     selectedIds=remove?selectedIds.filter(id=>!hitIds.includes(id)):Array.from(new Set([...selectedIds,...hitIds]));
     selected=selectedIds.length?selectedIds[selectedIds.length-1]:null;
    }else{
-    selected=hit.id;selectedIds=hitIds;
+    if(!selectedIds.includes(hit.id)){selected=hit.id;selectedIds=hitIds}else{selected=hit.id}
     const members=selectedIds.map(shapeById).filter(Boolean);
     if(members.length&&members.every(sh=>!sh.locked&&!layer(sh.layer).locked)){
      drag={kind:'moveGroup',sx:p.x,sy:p.y,items:members.map(sh=>({id:sh.id,ox:sh.x,oy:sh.y})),before:historyState(),moved:false};
