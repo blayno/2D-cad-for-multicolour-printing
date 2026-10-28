@@ -39,7 +39,7 @@ header{height:72px;display:flex;align-items:center;gap:15px;padding:8px 16px;bac
 .tools button span{display:block;font-size:18px;margin-bottom:3px}
 .canvasWrap{display:flex;flex-direction:column;overflow:hidden;position:relative}
 .canvasTop{display:flex;gap:5px;align-items:center;flex-wrap:wrap;padding:7px;background:#171f2d;border-bottom:1px solid var(--line)}
-.canvasTop button{padding:7px 9px}
+.canvasTop button{padding:7px 9px}.canvasZoom{display:flex;align-items:center;justify-content:flex-end;gap:5px;flex:0 0 100%;width:100%;padding-top:6px;border-top:1px solid var(--line)}
 .canvasArea{flex:1;min-height:0;position:relative;background:#111925}
 canvas{display:block;width:100%;height:100%;touch-action:none}
 .canvasFoot{height:38px;display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:#171f2d;color:var(--muted);font-size:12px}
@@ -159,13 +159,12 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <div class="canvasTop">
 <button id="selectTool" class="active">↖ Select</button>
 <button id="deleteBtn">⌫ Delete</button>
-<button id="duplicateBtn">▣ Duplicate</button>
+<button id="duplicateBtn">▣ Duplicate</button><button id="centerSelectionBtn" title="Center selected vectors on the buildplate">Center on plate</button>
 <button id="groupBtn">Group</button>
 <button id="ungroupBtn">Ungroup</button>
 
 
-<span style="flex:1"></span>
-<button id="zoomOut">−</button><button id="zoomLabel">100%</button><button id="zoomIn">＋</button><button id="fitBtn2">Fit</button>
+<div class="canvasZoom"><button id="zoomOut">−</button><button id="zoomLabel">100%</button><button id="zoomIn">＋</button><button id="fitBtn2">Fit</button></div>
 </div>
 <div class="canvasArea"><canvas id="canvas" width="1200" height="800"></canvas></div>
 <div class="canvasFoot"><span id="canvasCoords">X: 0.0 · Y: 0.0 mm</span><span id="selectionInfo">Nothing selected</span><span id="canvasSize">180 × 180 mm</span></div>
@@ -418,6 +417,16 @@ function selectedShapes(){return selectedIds.map(shapeById).filter(sh=>sh&&visib
 function shapeBounds(sh){
  if(sh.type==='freehand'&&sh.points&&sh.points.length){const xs=sh.points.map(p=>p[0]),ys=sh.points.map(p=>p[1]);return{l:Math.min(...xs),t:Math.min(...ys),r:Math.max(...xs),b:Math.max(...ys)}}
  return{l:Math.min(sh.x,sh.x+sh.w),t:Math.min(sh.y,sh.y+sh.h),r:Math.max(sh.x,sh.x+sh.w),b:Math.max(sh.y,sh.y+sh.h)}
+}
+function centerSelectedOnBuildplate(){
+ const picked=selectedShapes().filter(sh=>!sh.locked&&!layer(sh.layer)?.locked);
+ if(!picked.length){status('Select unlocked vectors to center on the buildplate');return}
+ const boxes=picked.map(shapeBounds),left=Math.min(...boxes.map(b=>b.l)),right=Math.max(...boxes.map(b=>b.r)),top=Math.min(...boxes.map(b=>b.t)),bottom=Math.max(...boxes.map(b=>b.b));
+ const dx=docW()/2-(left+right)/2,dy=docH()/2-(top+bottom)/2;
+ if(Math.abs(dx)<1e-8&&Math.abs(dy)<1e-8){status('Selected vectors are already centered');return}
+ snapshot();
+ for(const sh of picked){sh.x+=dx;sh.y+=dy;if(sh.type==='freehand'&&sh.points)sh.points=sh.points.map(p=>[p[0]+dx,p[1]+dy])}
+ updateProps();render();status(`${picked.length} vector(s) centered on the buildplate`);
 }
 function selectionBounds(){const list=selectedShapes();if(!list.length)return null;const boxes=list.map(shapeBounds);return{l:Math.min(...boxes.map(b=>b.l)),t:Math.min(...boxes.map(b=>b.t)),r:Math.max(...boxes.map(b=>b.r)),b:Math.max(...boxes.map(b=>b.b))}}
 function selectionHandlePoints(b){const a=toScreen(b.l,b.t),z=toScreen(b.r,b.b),mx=(a.x+z.x)/2,my=(a.y+z.y)/2;return[{x:a.x,y:a.y},{x:mx,y:a.y},{x:z.x,y:a.y},{x:z.x,y:my},{x:z.x,y:z.y},{x:mx,y:z.y},{x:a.x,y:z.y},{x:a.x,y:my}]}
@@ -684,6 +693,7 @@ $('deleteBtn').onclick=()=>{
  snapshot();shapes=shapes.filter(s=>!ids.includes(s.id));selected=null;selectedIds=[];
  updateProps();render();status('Selected shapes deleted');
 };
+$('centerSelectionBtn').onclick=centerSelectedOnBuildplate;
 $('duplicateBtn').onclick=()=>{
  const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
  if(!ids.length)return;
