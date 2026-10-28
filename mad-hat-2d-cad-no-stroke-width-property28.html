@@ -188,7 +188,7 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <div class="row"><label>X (mm)</label><input id="shapeX" type="number" step=".1"><label>Y (mm)</label><input id="shapeY" type="number" step=".1"></div>
 <div class="row"><label>W (mm)</label><input id="shapeW" type="number" min=".1" step=".1"><label>H (mm)</label><input id="shapeH" type="number" min=".1" step=".1"></div>
 
-<div class="row"><label>Stroke width</label><input id="strokeWidth" type="number" min="0" max="20" step=".2" value="0"></div>
+
 <div class="row"><label class="checkbox"><input id="shapeVisible" type="checkbox" checked> Visible</label><label class="checkbox"><input id="showAllVectors" type="checkbox" checked> Show all</label></div>
 
 <button id="applyProps" class="wide primary">Apply properties</button>
@@ -467,7 +467,7 @@ function updateProps(){
  $('properties').classList.toggle('hidden',!has);
  $('noSelection').classList.toggle('hidden',has);
  if(!s)return;
- for(const [id,v] of [['shapeName',s.name],['shapeX',s.x],['shapeY',s.y],['shapeW',s.w],['shapeH',s.h],['strokeWidth',s.strokeWidth],['shapeVisible',s.visible!==false]]){
+ for(const [id,v] of [['shapeName',s.name],['shapeX',s.x],['shapeY',s.y],['shapeW',s.w],['shapeH',s.h],['shapeVisible',s.visible!==false]]){
   if($(id).type==='checkbox')$(id).checked=v;else $(id).value=v;
  }
 }
@@ -761,7 +761,7 @@ $('shapeVisible').onchange=()=>{
 $('applyProps').onclick=()=>{
  const s=shapeById(selected);if(!s)return;
  snapshot();s.name=$('shapeName').value||'Shape';
- for(const [k,id] of [['x','shapeX'],['y','shapeY'],['w','shapeW'],['h','shapeH'],['strokeWidth','strokeWidth']])s[k]=+$(id).value||0;
+ for(const [k,id] of [['x','shapeX'],['y','shapeY'],['w','shapeW'],['h','shapeH']])s[k]=+$(id).value||0;
  s.w=Math.max(.1,s.w);s.h=Math.max(.1,s.h);
  
  s.visible=$('shapeVisible').checked;
