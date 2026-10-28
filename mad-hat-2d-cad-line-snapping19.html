@@ -490,6 +490,15 @@ function snap(p){
  return{x:Math.round(p.x/g)*g,y:Math.round(p.y/g)*g};
 }
 
+function lineSnapPoints(sh){
+ if(sh.type==='line')return[[sh.x,sh.y],[sh.x+sh.w,sh.y+sh.h]];
+ if(sh.type==='freehand'&&sh.points&&sh.points.length)return[sh.points[0],sh.points[sh.points.length-1]];
+ if(sh.type==='polygon')return(sh.points||[]).map(v=>[sh.x+v[0]*sh.w,sh.y+v[1]*sh.h]);
+ const l=Math.min(sh.x,sh.x+sh.w),r=Math.max(sh.x,sh.x+sh.w),t=Math.min(sh.y,sh.y+sh.h),b=Math.max(sh.y,sh.y+sh.h),mx=(l+r)/2,my=(t+b)/2;
+ if(sh.type==='ellipse')return[[mx,t],[r,my],[mx,b],[l,my]];
+ return[[l,t],[mx,t],[r,t],[r,my],[r,b],[mx,b],[l,b],[l,my]];
+}
+function snapLinePoint(p){let best=null,bestD=12;const s=scale();for(const sh of shapes){if(!visible(sh))continue;for(const v of lineSnapPoints(sh)){const d=Math.hypot((v[0]-p.x)*s,(v[1]-p.y)*s);if(d<bestD){bestD=d;best={x:v[0],y:v[1]}}}}return best||snap(p)}
 canvas.addEventListener('pointerdown',e=>{
  if(e.button===1){
   e.preventDefault();
@@ -501,7 +510,7 @@ canvas.addEventListener('pointerdown',e=>{
  }
  if(e.button!==0)return;
  canvas.setPointerCapture(e.pointerId);
- const sc=pointer(e),p=snap(toDoc(sc.x,sc.y));
+ const sc=pointer(e),raw=toDoc(sc.x,sc.y),p=tool==='line'?snapLinePoint(raw):snap(raw);
 
  if(tool==='pan'){drag={kind:'pan',sx:sc.x,sy:sc.y,px:pan.x,py:pan.y};return}
  if(tool==='eyedrop'){const s=pick(p);if(s){layer(activeLayer).color=s.fill;renderLayers()}setTool('select');return}
@@ -545,7 +554,7 @@ canvas.addEventListener('pointerdown',e=>{
  snapshot();
  drawing={
   id:nextId++,type:tool==='pen'?'freehand':tool,x:p.x,y:p.y,w:0,h:0,
-  centerOut:['rect','ellipse','line','polygon'].includes(tool),centerX:p.x,centerY:p.y,
+  centerOut:['rect','ellipse','polygon'].includes(tool),centerX:p.x,centerY:p.y,
    fill:'none',stroke:'#ffffff',
   strokeWidth:tool==='line'||tool==='pen'?.5:0,
   layer:activeLayer,name:tool+' '+nextId,visible:true,
@@ -555,19 +564,24 @@ canvas.addEventListener('pointerdown',e=>{
 
 canvas.addEventListener('pointermove',e=>{
  const sc=pointer(e),p=toDoc(sc.x,sc.y);$('canvasCoords').textContent=`X: ${p.x.toFixed(1)} · Y: ${p.y.toFixed(1)} mm`;
- if(!drag&&drawing){const q=snap(p);if(drawing.centerOut){let rx=Math.abs(q.x-drawing.centerX),ry=Math.abs(q.y-drawing.centerY);if(e.shiftKey){const radius=Math.max(rx,ry);rx=radius;ry=radius}drawing.x=drawing.centerX-rx;drawing.y=drawing.centerY-ry;drawing.w=rx*2;drawing.h=ry*2}else{drawing.w=q.x-drawing.x;drawing.h=q.y-drawing.y}if(drawing.type==='freehand')drawing.points.push([q.x,q.y]);render();return}if(!drag)return;
+ if(!drag&&drawing){const q=drawing.type==='line'?snapLinePoint(p):snap(p);if(drawing.centerOut){let rx=Math.abs(q.x-drawing.centerX),ry=Math.abs(q.y-drawing.centerY);if(e.shiftKey){const radius=Math.max(rx,ry);rx=radius;ry=radius}drawing.x=drawing.centerX-rx;drawing.y=drawing.centerY-ry;drawing.w=rx*2;drawing.h=ry*2}else{drawing.w=q.x-drawing.x;drawing.h=q.y-drawing.y}if(drawing.type==='freehand')drawing.points.push([q.x,q.y]);render();return}if(!drag)return;
  if(drag.kind==='pan'){pan.x=drag.px+(sc.x-drag.sx);pan.y=drag.py+(sc.y-drag.sy);render();return}if(drag.kind==='selectBox'){selectionBox.x2=p.x;selectionBox.y2=p.y;render();return}
   if(drag.kind==='moveGroup'){const dx=p.x-drag.sx,dy=p.y-drag.sy;if(dx||dy)drag.moved=true;for(const item of drag.items){const sh=shapeById(item.id);if(sh){sh.x=item.ox+dx;sh.y=item.oy+dy}}render()}
   if(drag.kind==='resizeSelection'){applySelectionResize(drag,p,e.shiftKey);render()}
 });
 canvas.addEventListener('pointerup',()=>{
- if(drawing){
-  if(Math.abs(drawing.w)<.2)drawing.w=tool==='polygon'?20:5;
-  if(Math.abs(drawing.h)<.2)drawing.h=tool==='polygon'?20:5;
-  if(drawing.centerOut){drawing.x=drawing.centerX-drawing.w/2;drawing.y=drawing.centerY-drawing.h/2;delete drawing.centerOut;delete drawing.centerX;delete drawing.centerY}
-  if(drawing.w<0){drawing.x+=drawing.w;drawing.w=Math.abs(drawing.w)}
-  if(drawing.h<0){drawing.y+=drawing.h;drawing.h=Math.abs(drawing.h)}
-  shapes.push(drawing);selected=drawing.id;selectedIds=[drawing.id];
+  if(drawing){
+   if(drawing.type==='line'){
+    if(Math.hypot(drawing.w,drawing.h)<.2){drawing.w=5;drawing.h=0}
+   }else{
+    if(Math.abs(drawing.w)<.2)drawing.w=tool==='polygon'?20:5;
+    if(Math.abs(drawing.h)<.2)drawing.h=tool==='polygon'?20:5;
+    if(drawing.centerOut){drawing.x=drawing.centerX-drawing.w/2;drawing.y=drawing.centerY-drawing.h/2}
+    if(drawing.w<0){drawing.x+=drawing.w;drawing.w=Math.abs(drawing.w)}
+    if(drawing.h<0){drawing.y+=drawing.h;drawing.h=Math.abs(drawing.h)}
+   }
+   delete drawing.centerOut;delete drawing.centerX;delete drawing.centerY;
+   shapes.push(drawing);selected=drawing.id;selectedIds=[drawing.id];
   drawing=null;renderLayers();updateProps();render();status('Shape created');
  }
 
