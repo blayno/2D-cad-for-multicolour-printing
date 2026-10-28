@@ -283,7 +283,7 @@ function redo(){
  restore(future.pop());status('Redo complete');
 }
 function newShape(type,x,y,w,h,extra={}){
- const s={id:nextId++,type,x,y,w,h,fill:layer(activeLayer).color,stroke:'#101722',strokeWidth:0,layer:activeLayer,name:type+' '+nextId,visible:true,locked:false,...extra};
+ const s={id:nextId++,type,x,y,w,h,fill:'none',stroke:'#ffffff',strokeWidth:.5,layer:activeLayer,name:type+' '+nextId,visible:true,locked:false,...extra};
  shapes.push(s);selected=s.id;selectedIds=[s.id];return s;
 }
 function shapeById(id){return shapes.find(s=>s.id===id)}
@@ -374,7 +374,8 @@ function drawShape(sh,preview){
   });
  }else if(sh.type==='text'){
   ctx.font=`${Math.max(8,Math.abs(h))}px Arial`;
-  ctx.fillText(sh.text||'Text',p.x,p.y+Math.abs(h));
+   if(sh.fill==='none'){ctx.strokeStyle=sh.stroke||'#ffffff';ctx.lineWidth=Math.max(1,(sh.strokeWidth||.5)*scale());ctx.strokeText(sh.text||'Text',p.x,p.y+Math.abs(h))}
+   else ctx.fillText(sh.text||'Text',p.x,p.y+Math.abs(h));
  }
 
  if(sh.type==='line'||sh.type==='freehand'){
@@ -500,7 +501,7 @@ canvas.addEventListener('pointerdown',e=>{
 
  if(tool==='text'){
   const t=prompt('Text to add:','Text');
-  if(t){snapshot();const sh=newShape('text',p.x,p.y,Math.max(10,t.length*4),8,{text:t,fill:layer(activeLayer).color});updateProps();render()}
+   if(t){snapshot();const sh=newShape('text',p.x,p.y,Math.max(10,t.length*4),8,{text:t,fill:'none',stroke:'#ffffff',strokeWidth:.5});updateProps();render()}
   setTool('select');return;
  }
 
@@ -536,7 +537,7 @@ canvas.addEventListener('pointerdown',e=>{
  snapshot();
  drawing={
   id:nextId++,type:tool==='pen'?'freehand':tool,x:p.x,y:p.y,w:0,h:0,
-  fill:layer(activeLayer).color,stroke:'#101722',
+   fill:'none',stroke:'#ffffff',
   strokeWidth:tool==='line'||tool==='pen'?.5:0,
   layer:activeLayer,name:tool+' '+nextId,visible:true,
   points:tool==='polygon'?[[0,1],[.5,0],[1,1]]:tool==='pen'?[[p.x,p.y]]:undefined
