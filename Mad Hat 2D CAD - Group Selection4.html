@@ -179,6 +179,7 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <div id="layerList" class="layerList"></div>
 <div class="row"><button id="addLayer">＋ Layer</button><button id="deleteLayer">Delete layer</button></div>
 <div class="row"><button id="layerUp">↑ Move up</button><button id="layerDown">↓ Move down</button></div>
+<button id="transferShapes" class="wide" type="button">Move selected shapes to active layer</button>
 </div>
 
 <div class="section">
@@ -230,7 +231,7 @@ let layers=[{id:1,name:'Layer 1',color:'#62d6bd',visible:true,locked:false}];
 let activeLayer=1,selected=null,selectedIds=[],tool='select',traceMode='color';
 let reference=null,referenceVisible=true,zoom=1,pan={x:0,y:0};
 let drawing=null,drag=null,selectionBox=null,history=[],future=[];
-let nextId=1,nextLayer=2;
+let nextId=1,nextLayer=2,vectorClipboard=[];
 
 const palette=['#62d6bd','#8b9dff','#ffb86b','#ff7c9b','#e8e879','#76b8ff','#bd7cff','#ffffff','#ff5555','#39c4ed','#f0a000','#6fd36f'];
 
@@ -295,6 +296,7 @@ function newShape(type,x,y,w,h,extra={}){
 function shapeById(id){return shapes.find(s=>s.id===id)}
 function visible(s){return s.visible!==false&&layer(s.layer).visible!==false}
 function isSelected(s){return selectedIds.includes(s.id)||selected===s.id}
+function groupMemberIds(sh){return sh&&sh.group?shapes.filter(item=>item.group===sh.group).map(item=>item.id):sh?[sh.id]:[]}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
 function render(){
@@ -329,16 +331,8 @@ function render(){
 
  for(const id of selectedIds){
   const sel=shapeById(id);if(!sel||!visible(sel))continue;
-  const p=toScreen(sel.x,sel.y),q=toScreen(sel.x+sel.w,sel.y+sel.h);
-  ctx.save();ctx.strokeStyle='#58a6ff';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);
-  ctx.strokeRect(p.x,p.y,q.x-p.x,q.y-p.y);ctx.setLineDash([]);
-  for(const [x,y] of [[p.x,p.y],[q.x,p.y],[q.x,q.y],[p.x,q.y]]){
-   ctx.fillStyle='#fff';ctx.strokeStyle='#58a6ff';
-   ctx.fillRect(x-4,y-4,8,8);ctx.strokeRect(x-4,y-4,8,8);
-  }
-  ctx.restore();
+  drawSelectionOutline(sel);
  }
-
  if(selectionBox){
   const a=toScreen(selectionBox.x1,selectionBox.y1),b=toScreen(selectionBox.x2,selectionBox.y2);
   ctx.save();ctx.fillStyle='rgba(88,166,255,.12)';ctx.strokeStyle='#58a6ff';
@@ -401,6 +395,20 @@ function drawShape(sh,preview){
  ctx.restore();
 }
 
+function drawSelectionOutline(sh){
+ const p=toScreen(sh.x,sh.y),q=toScreen(sh.x+sh.w,sh.y+sh.h),w=q.x-p.x,h=q.y-p.y;
+ ctx.save();ctx.beginPath();
+ if(sh.type==='rect'||sh.type==='image')ctx.rect(p.x,p.y,w,h);
+ else if(sh.type==='ellipse')ctx.ellipse(p.x+w/2,p.y+h/2,Math.abs(w/2),Math.abs(h/2),0,0,Math.PI*2);
+ else if(sh.type==='line'){ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y)}
+ else if(sh.type==='polygon'){
+  const pts=sh.points||[[0,1],[.5,0],[1,1]];
+  pts.forEach((v,i)=>i?ctx.lineTo(p.x+v[0]*w,p.y+v[1]*h):ctx.moveTo(p.x+v[0]*w,p.y+v[1]*h));ctx.closePath();
+ }else if(sh.type==='freehand'&&sh.points){
+  sh.points.forEach((v,i)=>{const pt=toScreen(v[0],v[1]);if(i)ctx.lineTo(pt.x,pt.y);else ctx.moveTo(pt.x,pt.y)});
+ }else if(sh.type==='text')ctx.rect(p.x,p.y,w,h);
+ ctx.strokeStyle='#ff4fa3';ctx.lineWidth=2.5;ctx.setLineDash([]);ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();ctx.restore();
+}
 function pointIn(sh,p){
  return p.x>=Math.min(sh.x,sh.x+sh.w)&&p.x<=Math.max(sh.x,sh.x+sh.w)&&p.y>=Math.min(sh.y,sh.y+sh.h)&&p.y<=Math.max(sh.y,sh.y+sh.h);
 }
@@ -467,15 +475,25 @@ canvas.addEventListener('pointerdown',e=>{
 
  if(tool==='select'){
   const hit=pick(p);
+  const multi=e.ctrlKey||e.metaKey;
   if(hit){
-   selected=hit.id;selectedIds=[hit.id];
-   if(!hit.locked&&!layer(hit.layer).locked)drag={kind:'move',sx:p.x,sy:p.y,ox:hit.x,oy:hit.y,id:hit.id};
-  }else{
+   const hitIds=groupMemberIds(hit);
+   if(multi){
+    const remove=hitIds.every(id=>selectedIds.includes(id));
+    selectedIds=remove?selectedIds.filter(id=>!hitIds.includes(id)):Array.from(new Set([...selectedIds,...hitIds]));
+    selected=selectedIds.length?selectedIds[selectedIds.length-1]:null;
+   }else{
+    selected=hit.id;selectedIds=hitIds;
+    const members=selectedIds.map(shapeById).filter(Boolean);
+    if(members.length&&members.every(sh=>!sh.locked&&!layer(sh.layer).locked)){
+     drag={kind:'moveGroup',sx:p.x,sy:p.y,items:members.map(sh=>({id:sh.id,ox:sh.x,oy:sh.y}))};
+    }
+   }
+  }else if(!multi){
    selected=null;selectedIds=[];
    selectionBox={x1:p.x,y1:p.y,x2:p.x,y2:p.y};
    drag={kind:'selectBox'};
-  }
-  updateProps();renderLayers();render();return;
+  } updateProps();renderLayers();render();return;
  }
 
  if(layer(activeLayer).locked){status('This layer is locked. Unlock it to draw.');return}
@@ -508,11 +526,11 @@ canvas.addEventListener('pointermove',e=>{
  if(drag.kind==='selectBox'){
   selectionBox.x2=p.x;selectionBox.y2=p.y;render();return;
  }
- if(drag.kind==='move'){
-  const sh=shapeById(drag.id);
-  if(sh){sh.x=drag.ox+(p.x-drag.sx);sh.y=drag.oy+(p.y-drag.sy);render()}
- }
-});
+ if(drag.kind==='moveGroup'){
+  const dx=p.x-drag.sx,dy=p.y-drag.sy;
+  for(const item of drag.items){const sh=shapeById(item.id);if(sh){sh.x=item.ox+dx;sh.y=item.oy+dy}}
+  render();
+ }});
 
 canvas.addEventListener('pointerup',()=>{
  if(drawing){
@@ -534,7 +552,7 @@ canvas.addEventListener('pointerup',()=>{
   }
   selectionBox=null;updateProps();renderLayers();render();
  }
- if(drag&&drag.kind==='move'){render();updateProps()}
+ if(drag&&drag.kind==='moveGroup'){render();updateProps()}
  drag=null;
 });
 
@@ -605,6 +623,16 @@ $('layerDown').onclick=()=>{
  if(i>0){snapshot();[layers[i],layers[i-1]]=[layers[i-1],layers[i]];renderLayers();render()}
 };
 
+$('transferShapes').onclick=()=>{
+ const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
+ const moving=shapes.filter(sh=>ids.includes(sh.id)&&sh.layer!==activeLayer);
+ if(!ids.length){status('Select one or more shapes to move');return}
+ if(!moving.length){status('Selected shapes are already on the active layer');return}
+ if(layer(activeLayer).locked){status('The active layer is locked. Unlock it before moving shapes.');return}
+ if(moving.some(sh=>layer(sh.layer).locked)){status('Unlock the source layer before moving its shapes');return}
+ snapshot();moving.forEach(sh=>sh.layer=activeLayer);
+ renderLayers();updateProps();render();status(`${moving.length} shape(s) moved to ${layer(activeLayer).name}`);
+};
 $('deleteBtn').onclick=()=>{
  const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
  if(!ids.length)return;
@@ -624,10 +652,15 @@ $('duplicateBtn').onclick=()=>{
 $('groupBtn').onclick=()=>{
  const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
  if(!ids.length)return;
- snapshot();shapes.filter(s=>ids.includes(s.id)).forEach(s=>s.group='Group 1');
- status(`${ids.length} shape(s) assigned to Group 1`);
-};
-$('ungroupBtn').onclick=()=>{
+ snapshot();
+ let groupNumber=1,groupName;
+ do{groupName='Group '+groupNumber++}while(shapes.some(s=>s.group===groupName));
+ shapes.filter(s=>ids.includes(s.id)).forEach(s=>s.group=groupName);
+ selectedIds=shapes.filter(s=>ids.includes(s.id)||s.group===groupName).map(s=>s.id);
+ selected=selectedIds[selectedIds.length-1]||null;
+ updateProps();render();
+ status(`${ids.length} shape(s) assigned to ${groupName}`);
+};$('ungroupBtn').onclick=()=>{
  const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
  if(!ids.length)return;
  snapshot();shapes.filter(s=>ids.includes(s.id)).forEach(s=>delete s.group);
@@ -1137,9 +1170,31 @@ $('helpBtn').onclick=()=>alert(
  'Smoothness 0 keeps the original corners. Higher values apply more corner-cutting for rounded outlines. Very high values may soften sharp tips and small details.'
 );
 
+function copySelectedVectors(){
+ const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
+ if(!ids.length)return;
+ vectorClipboard=shapes.filter(s=>ids.includes(s.id)).map(s=>JSON.parse(JSON.stringify(s)));
+ status(`${vectorClipboard.length} vector shape(s) copied — switch layers and press Ctrl+V to paste`);
+}
+function pasteVectors(){
+ if(!vectorClipboard.length)return;
+ const target=layer(activeLayer);
+ if(target.locked){status('This layer is locked. Unlock it before pasting.');return}
+ snapshot();
+ const copies=vectorClipboard.map(s=>{
+  const c=JSON.parse(JSON.stringify(s));
+  c.id=nextId++;c.name=(s.name||s.type||'Shape')+' copy';c.layer=activeLayer;c.x=(+s.x||0)+3;c.y=(+s.y||0)+3;
+  return c;
+ });
+ shapes.push(...copies);selectedIds=copies.map(s=>s.id);selected=selectedIds[selectedIds.length-1];
+ updateProps();renderLayers();render();
+ status(`${copies.length} vector shape(s) pasted onto ${target.name}`);
+}
 document.addEventListener('keydown',e=>{
  if(e.target.matches('input,textarea,select'))return;
- if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo()}
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'){e.preventDefault();copySelectedVectors()}
+ else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v'){e.preventDefault();pasteVectors()}
+ else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo()}
  else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo()}
  else if(e.key==='Delete'||e.key==='Backspace')$('deleteBtn').click();
  else if(e.key==='Escape'){drawing=null;drag=null;selectionBox=null;setTool('select');render()}
