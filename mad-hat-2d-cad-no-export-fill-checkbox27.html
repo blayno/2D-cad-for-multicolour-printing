@@ -100,15 +100,13 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <div class="app">
 <nav class="panel tools" aria-label="Drawing tools">
 <button class="active" data-tool="select"><span>↖</span>Select</button>
-<button data-tool="pan"><span>✋</span>Pan</button>
+
 <button data-tool="rect"><span>▱</span>Rectangle</button>
 <button data-tool="ellipse"><span>◯</span>Ellipse</button>
 <button data-tool="line"><span>／</span>Line</button>
 <button data-tool="polygon"><span>⬡</span>Polygon</button>
 <button data-tool="pen"><span>⌁</span>Freehand</button>
 <button data-tool="text"><span>T</span>Text</button>
-<button data-tool="image"><span>▧</span>Image</button>
-<button data-tool="eyedrop"><span>◉</span>Pick colour</button>
 <button id="undoBtn"><span>↶</span>Undo</button>
 <button id="redoBtn"><span>↷</span>Redo</button>
 </nav>
@@ -164,8 +162,8 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <button id="duplicateBtn">▣ Duplicate</button>
 <button id="groupBtn">Group</button>
 <button id="ungroupBtn">Ungroup</button>
-<button id="frontBtn">Bring forward</button>
-<button id="backBtn">Send backward</button>
+
+
 <span style="flex:1"></span>
 <button id="zoomOut">−</button><button id="zoomLabel">100%</button><button id="zoomIn">＋</button><button id="fitBtn2">Fit</button>
 </div>
@@ -189,10 +187,10 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <label class="fieldlabel">Name</label><input id="shapeName" type="text" style="width:100%">
 <div class="row"><label>X (mm)</label><input id="shapeX" type="number" step=".1"><label>Y (mm)</label><input id="shapeY" type="number" step=".1"></div>
 <div class="row"><label>W (mm)</label><input id="shapeW" type="number" min=".1" step=".1"><label>H (mm)</label><input id="shapeH" type="number" min=".1" step=".1"></div>
-<div class="row"><label>Fill</label><input id="shapeColor" type="color"><label>Stroke</label><input id="strokeColor" type="color"></div>
+
 <div class="row"><label>Stroke width</label><input id="strokeWidth" type="number" min="0" max="20" step=".2" value="0"></div>
-<label class="checkbox"><input id="shapeVisible" type="checkbox" checked> Visible</label>
-<label class="checkbox"><input id="shapeLocked" type="checkbox"> Lock position</label>
+<div class="row"><label class="checkbox"><input id="shapeVisible" type="checkbox" checked> Visible</label><label class="checkbox"><input id="showAllVectors" type="checkbox" checked> Show all</label></div>
+
 <button id="applyProps" class="wide primary">Apply properties</button>
 </div>
 </div>
@@ -210,7 +208,7 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <option value="layers">Separate SVG per layer</option>
 <option value="selected">Selected shape only</option>
 </select>
-<label class="checkbox"><input type="checkbox" id="exportColors" checked> Keep fill colours</label>
+
 <label class="checkbox"><input type="checkbox" id="exportStroke"> Include strokes</label>
 <label class="checkbox"><input type="checkbox" id="exportRef"> Include reference image</label>
 <label class="checkbox"><input type="checkbox" id="exportMm" checked> Set SVG size in millimetres</label>
@@ -347,7 +345,7 @@ function render(){
  $('canvasSize').textContent=docW()+' × '+docH()+' mm';
  const sel=shapeById(selected);
  $('selectionInfo').textContent=selectedIds.length>1?`${selectedIds.length} shapes selected`:sel?sel.name+' · '+sel.w.toFixed(1)+' × '+sel.h.toFixed(1)+' mm':'Nothing selected';
- scheduleAutosave();
+ $('showAllVectors').checked=shapes.every(sh=>sh.visible!==false)&&layers.every(l=>l.visible!==false); scheduleAutosave();
 }
 
 const AUTOSAVE_KEY='madHat2dCad.autosave.v1';let autosaveTimer=null;
@@ -469,7 +467,7 @@ function updateProps(){
  $('properties').classList.toggle('hidden',!has);
  $('noSelection').classList.toggle('hidden',has);
  if(!s)return;
- for(const [id,v] of [['shapeName',s.name],['shapeX',s.x],['shapeY',s.y],['shapeW',s.w],['shapeH',s.h],['shapeColor',s.fill==='none'?'#ffffff':s.fill],['strokeColor',s.stroke],['strokeWidth',s.strokeWidth],['shapeVisible',s.visible!==false],['shapeLocked',!!s.locked]]){
+ for(const [id,v] of [['shapeName',s.name],['shapeX',s.x],['shapeY',s.y],['shapeW',s.w],['shapeH',s.h],['strokeWidth',s.strokeWidth],['shapeVisible',s.visible!==false]]){
   if($(id).type==='checkbox')$(id).checked=v;else $(id).value=v;
  }
 }
@@ -751,19 +749,12 @@ $('groupBtn').onclick=()=>{
  snapshot();shapes.filter(s=>ids.includes(s.id)).forEach(s=>delete s.group);
  status('Selected shapes ungrouped');
 };
-$('frontBtn').onclick=()=>{
- const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
- if(!ids.length)return;
- snapshot();const chosen=shapes.filter(s=>ids.includes(s.id)),rest=shapes.filter(s=>!ids.includes(s.id));
- shapes=[...rest,...chosen];render();
-};
-$('backBtn').onclick=()=>{
- const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
- if(!ids.length)return;
- snapshot();const chosen=shapes.filter(s=>ids.includes(s.id)),rest=shapes.filter(s=>!ids.includes(s.id));
- shapes=[...chosen,...rest];render();
-};
 
+
+$('showAllVectors').onchange=()=>{
+ const show=$('showAllVectors').checked;snapshot();shapes.forEach(sh=>sh.visible=show);if(show)layers.forEach(l=>l.visible=true);
+ renderLayers();render();status(show?'All vectors shown':'All vectors hidden');
+};
 $('shapeVisible').onchange=()=>{
  const s=shapeById(selected);if(s){s.visible=$('shapeVisible').checked;renderLayers();render()}
 };
@@ -772,8 +763,8 @@ $('applyProps').onclick=()=>{
  snapshot();s.name=$('shapeName').value||'Shape';
  for(const [k,id] of [['x','shapeX'],['y','shapeY'],['w','shapeW'],['h','shapeH'],['strokeWidth','strokeWidth']])s[k]=+$(id).value||0;
  s.w=Math.max(.1,s.w);s.h=Math.max(.1,s.h);
- s.fill=$('shapeColor').value;s.stroke=$('strokeColor').value;
- s.visible=$('shapeVisible').checked;s.locked=$('shapeLocked').checked;
+ 
+ s.visible=$('shapeVisible').checked;
  renderLayers();updateProps();render();status('Shape properties updated');
 };
 
@@ -1190,7 +1181,7 @@ function svgString(list,includeRef=false){
 
  for(const sh of list){
   if(!visible(sh))continue;
-  const fill=$('exportColors').checked?sh.fill:'none';
+  const fill=sh.fill;
   const stroke=$('exportStroke').checked?sh.stroke:'none';
   const sw=$('exportStroke').checked?sh.strokeWidth:0;
   const common=`fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"`;
