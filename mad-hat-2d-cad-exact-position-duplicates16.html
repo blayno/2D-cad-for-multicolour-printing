@@ -351,7 +351,7 @@ function render(){
 const AUTOSAVE_KEY='madHat2dCad.autosave.v1';let autosaveTimer=null;
 function autosavePayload(){return {version:1,document:{width:docW(),height:docH()},shapes,layers,activeLayer,nextId,nextLayer,savedAt:Date.now()}}
 function scheduleAutosave(){clearTimeout(autosaveTimer);autosaveTimer=setTimeout(()=>{try{localStorage.setItem(AUTOSAVE_KEY,JSON.stringify(autosavePayload()))}catch(err){status('Autosave could not save. Use Save to download a project file.')}},700)}
-function recoverAutosave(){try{const raw=localStorage.getItem(AUTOSAVE_KEY);if(!raw)return false;const d=JSON.parse(raw);if(!d||!Array.isArray(d.shapes)||!Array.isArray(d.layers)||!d.layers.length)return false;shapes=d.shapes;layers=d.layers;activeLayer=d.activeLayer||layers[0].id;nextId=d.nextId||Math.max(0,...shapes.map(sh=>sh.id))+1;nextLayer=d.nextLayer||Math.max(0,...layers.map(l=>l.id))+1;if(d.document){$('docW').value=d.document.width||180;$('docH').value=d.document.height||180}selected=null;selectedIds=[];return true}catch(err){return false}}
+function recoverAutosave(){try{const raw=localStorage.getItem(AUTOSAVE_KEY);if(!raw)return false;const d=JSON.parse(raw);if(!d||!Array.isArray(d.shapes))return false;shapes=d.shapes.map(sh=>({...sh,layer:1}));layers=[{id:1,name:'Layer 1',color:'#62d6bd',visible:true,locked:false}];activeLayer=1;nextId=d.nextId||Math.max(0,...shapes.map(sh=>sh.id))+1;nextLayer=2;if(d.document){$('docW').value=d.document.width||180;$('docH').value=d.document.height||180}selected=null;selectedIds=[];return true}catch(err){return false}}
 function drawShape(sh,preview){
  const p=toScreen(sh.x,sh.y),q=toScreen(sh.x+sh.w,sh.y+sh.h);
  const w=q.x-p.x,h=q.y-p.y;
@@ -675,7 +675,7 @@ $('duplicateBtn').onclick=()=>{
  if(!ids.length)return;
  snapshot();
  const copies=shapes.filter(s=>ids.includes(s.id)).map(s=>{
-  const c=JSON.parse(JSON.stringify(s));c.id=nextId++;c.name=s.name+' copy';c.x+=3;c.y+=3;return c;
+  const c=JSON.parse(JSON.stringify(s));c.id=nextId++;c.name=s.name+' copy';return c;
  });
  shapes.push(...copies);selectedIds=copies.map(c=>c.id);selected=selectedIds[selectedIds.length-1];
  updateProps();render();status('Selected shapes duplicated');
@@ -1252,7 +1252,7 @@ function pasteVectors(){
  snapshot();
  const copies=vectorClipboard.map(s=>{
   const c=JSON.parse(JSON.stringify(s));
-  c.id=nextId++;c.name=(s.name||s.type||'Shape')+' copy';c.layer=activeLayer;c.x=(+s.x||0)+3;c.y=(+s.y||0)+3;
+  c.id=nextId++;c.name=(s.name||s.type||'Shape')+' copy';c.layer=activeLayer;
   return c;
  });
  shapes.push(...copies);selectedIds=copies.map(s=>s.id);selected=selectedIds[selectedIds.length-1];
