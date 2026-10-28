@@ -412,7 +412,7 @@ function drawSelectionOutline(sh){
  }else if(sh.type==='freehand'&&sh.points){
   sh.points.forEach((v,i)=>{const pt=toScreen(v[0],v[1]);if(i)ctx.lineTo(pt.x,pt.y);else ctx.moveTo(pt.x,pt.y)});
  }else if(sh.type==='text')ctx.rect(p.x,p.y,w,h);
- ctx.strokeStyle='#ff4fa3';ctx.lineWidth=2.5;ctx.setLineDash([]);ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();ctx.restore();
+ ctx.strokeStyle='#ff3333';ctx.lineWidth=2.5;ctx.setLineDash([]);ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();ctx.restore();
 }
 function selectedShapes(){return selectedIds.map(shapeById).filter(sh=>sh&&visible(sh))}
 function shapeBounds(sh){
