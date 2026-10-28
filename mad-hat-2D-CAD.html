@@ -459,6 +459,15 @@ function snap(p){
 }
 
 canvas.addEventListener('pointerdown',e=>{
+ if(e.button===1){
+  e.preventDefault();
+  canvas.setPointerCapture(e.pointerId);
+  const sc=pointer(e);
+  drag={kind:'pan',sx:sc.x,sy:sc.y,px:pan.x,py:pan.y,middle:true};
+  canvas.style.cursor='grabbing';
+  return;
+ }
+ if(e.button!==0)return;
  canvas.setPointerCapture(e.pointerId);
  const sc=pointer(e),p=snap(toDoc(sc.x,sc.y));
 
@@ -534,8 +543,12 @@ canvas.addEventListener('pointerup',()=>{
   selectionBox=null;updateProps();renderLayers();render();
  }
  if(drag&&drag.kind==='moveGroup'&&drag.moved){recordHistory(drag.before);render();updateProps()}
+ const wasMiddlePan=drag&&drag.middle;
  drag=null;
+ if(wasMiddlePan)canvas.style.cursor=tool==='pan'?'grab':tool==='select'?'default':'crosshair';
 });
+canvas.addEventListener('auxclick',e=>{if(e.button===1)e.preventDefault()});
+canvas.addEventListener('contextmenu',e=>{if(drag&&drag.middle)e.preventDefault()});
 
 canvas.addEventListener('dblclick',()=>{if(tool==='polygon')setTool('select')});
 canvas.addEventListener('wheel',e=>{
@@ -1198,3 +1211,4 @@ status(recovered?'Recovered your autosaved vectors and layers.':'Ready — impor
 
 </body>
 </html>
+
