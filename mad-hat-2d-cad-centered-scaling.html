@@ -326,6 +326,7 @@ function render(){
   const sel=shapeById(id);if(!sel||!visible(sel))continue;
   drawSelectionOutline(sel);
  }
+  drawSelectionBounds();
  if(selectionBox){
   const a=toScreen(selectionBox.x1,selectionBox.y1),b=toScreen(selectionBox.x2,selectionBox.y2);
   ctx.save();ctx.fillStyle='rgba(88,166,255,.12)';ctx.strokeStyle='#58a6ff';
@@ -407,6 +408,28 @@ function drawSelectionOutline(sh){
  }else if(sh.type==='text')ctx.rect(p.x,p.y,w,h);
  ctx.strokeStyle='#ff4fa3';ctx.lineWidth=2.5;ctx.setLineDash([]);ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();ctx.restore();
 }
+function selectedShapes(){return selectedIds.map(shapeById).filter(sh=>sh&&visible(sh))}
+function shapeBounds(sh){
+ if(sh.type==='freehand'&&sh.points&&sh.points.length){const xs=sh.points.map(p=>p[0]),ys=sh.points.map(p=>p[1]);return{l:Math.min(...xs),t:Math.min(...ys),r:Math.max(...xs),b:Math.max(...ys)}}
+ return{l:Math.min(sh.x,sh.x+sh.w),t:Math.min(sh.y,sh.y+sh.h),r:Math.max(sh.x,sh.x+sh.w),b:Math.max(sh.y,sh.y+sh.h)}
+}
+function selectionBounds(){const list=selectedShapes();if(!list.length)return null;const boxes=list.map(shapeBounds);return{l:Math.min(...boxes.map(b=>b.l)),t:Math.min(...boxes.map(b=>b.t)),r:Math.max(...boxes.map(b=>b.r)),b:Math.max(...boxes.map(b=>b.b))}}
+function selectionHandlePoints(b){const a=toScreen(b.l,b.t),z=toScreen(b.r,b.b),mx=(a.x+z.x)/2,my=(a.y+z.y)/2;return[{x:a.x,y:a.y},{x:mx,y:a.y},{x:z.x,y:a.y},{x:z.x,y:my},{x:z.x,y:z.y},{x:mx,y:z.y},{x:a.x,y:z.y},{x:a.x,y:my}]}
+function drawSelectionBounds(){const b=selectionBounds();if(!b)return;const a=toScreen(b.l,b.t),z=toScreen(b.r,b.b);ctx.save();ctx.strokeStyle='#58a6ff';ctx.lineWidth=1.5;ctx.setLineDash([5,3]);ctx.strokeRect(a.x,a.y,z.x-a.x,z.y-a.y);ctx.setLineDash([]);for(const p of selectionHandlePoints(b)){ctx.fillStyle='#edf2fa';ctx.strokeStyle='#1877d2';ctx.lineWidth=1.5;ctx.fillRect(p.x-4,p.y-4,8,8);ctx.strokeRect(p.x-4,p.y-4,8,8)}ctx.restore()}
+function handleAt(screenPoint){const b=selectionBounds();if(!b)return-1;const pts=selectionHandlePoints(b);for(let i=0;i<pts.length;i++)if(Math.hypot(screenPoint.x-pts[i].x,screenPoint.y-pts[i].y)<=9)return i;return-1}
+function resizeBounds(start,handle,p,uniform){
+ let l=start.l,t=start.t,r=start.r,b=start.b;const w=Math.max(.001,r-l),h=Math.max(.001,b-t),corner=handle%2===0;
+ if(handle===0||handle===1||handle===2){t=p.y;if(handle===0)l=p.x;if(handle===2)r=p.x}else if(handle===3){r=p.x}else if(handle===4||handle===5||handle===6){b=p.y;if(handle===4)r=p.x;if(handle===6)l=p.x}else if(handle===7){l=p.x}
+ if(!uniform)return{l:Math.min(l,r),t:Math.min(t,b),r:Math.max(l,r),b:Math.max(t,b)};
+  const cx=(start.l+start.r)/2,cy=(start.t+start.b)/2;
+  let k;
+  if(corner){k=Math.max(Math.abs(p.x-cx)/(w/2),Math.abs(p.y-cy)/(h/2))}
+  else if(handle===1||handle===5){k=Math.abs(p.y-cy)/(h/2)}
+  else{k=Math.abs(p.x-cx)/(w/2)}
+  k=Math.max(.02,k);
+  return{l:cx-w*k/2,t:cy-h*k/2,r:cx+w*k/2,b:cy+h*k/2}
+}
+function applySelectionResize(drag,p,uniform){const next=resizeBounds(drag.bounds,drag.handle,p,uniform),old=drag.bounds,ow=Math.max(.001,old.r-old.l),oh=Math.max(.001,old.b-old.t),nw=next.r-next.l,nh=next.b-next.t;for(const item of drag.items){const sh=shapeById(item.id);if(!sh)continue;const mapX=x=>next.l+(x-old.l)/ow*nw,mapY=y=>next.t+(y-old.t)/oh*nh;sh.x=mapX(item.x);sh.y=mapY(item.y);sh.w=mapX(item.x+item.w)-sh.x;sh.h=mapY(item.y+item.h)-sh.y;if(sh.type==='freehand'&&item.points)sh.points=item.points.map(v=>[mapX(v[0]),mapY(v[1])])}}
 function segmentDistance(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,den=dx*dx+dy*dy,t=den?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/den)):0;return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy)}
 function pointIn(sh,p){
  const left=Math.min(sh.x,sh.x+sh.w),right=Math.max(sh.x,sh.x+sh.w),top=Math.min(sh.y,sh.y+sh.h),bottom=Math.max(sh.y,sh.y+sh.h),box=p.x>=left&&p.x<=right&&p.y>=top&&p.y<=bottom,tol=Math.max(5/Math.max(.001,scale()),(+sh.strokeWidth||0)/2);
@@ -482,6 +505,11 @@ canvas.addEventListener('pointerdown',e=>{
  }
 
  if(tool==='select'){
+   const handle=handleAt(sc),picked=selectedShapes();
+   if(handle>=0&&picked.length&&picked.every(sh=>!sh.locked&&!layer(sh.layer).locked)){
+    drag={kind:'resizeSelection',handle,bounds:selectionBounds(),items:picked.map(sh=>({id:sh.id,x:sh.x,y:sh.y,w:sh.w,h:sh.h,points:sh.type==='freehand'&&sh.points?sh.points.map(v=>[v[0],v[1]]):null})),before:historyState()};
+    return;
+   }
   const hit=pick(p);
   const multi=e.ctrlKey||e.metaKey;
   if(hit){
@@ -520,7 +548,8 @@ canvas.addEventListener('pointermove',e=>{
  const sc=pointer(e),p=toDoc(sc.x,sc.y);$('canvasCoords').textContent=`X: ${p.x.toFixed(1)} · Y: ${p.y.toFixed(1)} mm`;
  if(!drag&&drawing){const q=snap(p);drawing.w=q.x-drawing.x;drawing.h=q.y-drawing.y;if(drawing.type==='freehand')drawing.points.push([q.x,q.y]);render();return}if(!drag)return;
  if(drag.kind==='pan'){pan.x=drag.px+(sc.x-drag.sx);pan.y=drag.py+(sc.y-drag.sy);render();return}if(drag.kind==='selectBox'){selectionBox.x2=p.x;selectionBox.y2=p.y;render();return}
- if(drag.kind==='moveGroup'){const dx=p.x-drag.sx,dy=p.y-drag.sy;if(dx||dy)drag.moved=true;for(const item of drag.items){const sh=shapeById(item.id);if(sh){sh.x=item.ox+dx;sh.y=item.oy+dy}}render()}
+  if(drag.kind==='moveGroup'){const dx=p.x-drag.sx,dy=p.y-drag.sy;if(dx||dy)drag.moved=true;for(const item of drag.items){const sh=shapeById(item.id);if(sh){sh.x=item.ox+dx;sh.y=item.oy+dy}}render()}
+  if(drag.kind==='resizeSelection'){applySelectionResize(drag,p,e.shiftKey);render()}
 });
 canvas.addEventListener('pointerup',()=>{
  if(drawing){
@@ -543,6 +572,7 @@ canvas.addEventListener('pointerup',()=>{
   selectionBox=null;updateProps();renderLayers();render();
  }
  if(drag&&drag.kind==='moveGroup'&&drag.moved){recordHistory(drag.before);render();updateProps()}
+  if(drag&&drag.kind==='resizeSelection'){recordHistory(drag.before);render();updateProps();status('Selection resized')}
  const wasMiddlePan=drag&&drag.middle;
  drag=null;
  if(wasMiddlePan)canvas.style.cursor=tool==='pan'?'grab':tool==='select'?'default':'crosshair';
