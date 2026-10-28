@@ -230,6 +230,8 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 
 const $=id=>document.getElementById(id);
 const canvas=$('canvas'),ctx=canvas.getContext('2d');
+let lastZoomPoint=null;
+
 
 let shapes=[];
 let layers=[{id:1,name:'Layer 1',color:'#62d6bd',visible:true,locked:false}];
@@ -479,8 +481,9 @@ function setTool(t){
  canvas.style.cursor=t==='pan'?'grab':t==='select'?'default':'crosshair';
 }
 function pointer(e){
- const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};
+ const r=canvas.getBoundingClientRect(),p={x:e.clientX-r.left,y:e.clientY-r.top};lastZoomPoint=p;return p;
 }
+function zoomAt(point,nextZoom){const anchor=point||{x:canvas.clientWidth/2,y:canvas.clientHeight/2},doc=toDoc(anchor.x,anchor.y);zoom=Math.max(.15,Math.min(8,nextZoom));const s=scale();pan.x=anchor.x-(canvas.clientWidth-docW()*s)/2-doc.x*s;pan.y=anchor.y-(canvas.clientHeight-docH()*s)/2-doc.y*s;render()}
 function snap(p){
  if(!$('snapGrid').checked)return p;
  const g=+$('gridSize').value||5;
@@ -590,8 +593,7 @@ canvas.addEventListener('contextmenu',e=>{if(drag&&drag.middle)e.preventDefault(
 canvas.addEventListener('dblclick',()=>{if(tool==='polygon')setTool('select')});
 canvas.addEventListener('wheel',e=>{
  e.preventDefault();
- zoom=Math.max(.15,Math.min(8,zoom*(e.deltaY<0?1.1:.9)));
- render();
+ zoomAt(pointer(e),zoom*(e.deltaY<0?1.1:.9));
 },{passive:false});
 
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
@@ -761,8 +763,8 @@ $('applyProps').onclick=()=>{
  renderLayers();updateProps();render();status('Shape properties updated');
 };
 
-$('zoomIn').onclick=()=>{zoom=Math.min(8,zoom*1.2);render()};
-$('zoomOut').onclick=()=>{zoom=Math.max(.15,zoom/1.2);render()};
+$('zoomIn').onclick=()=>zoomAt(lastZoomPoint,zoom*1.2);
+$('zoomOut').onclick=()=>zoomAt(lastZoomPoint,zoom/1.2);
 $('fitBtn').onclick=$('fitBtn2').onclick=()=>{zoom=1;pan={x:0,y:0};render()};
 $('showGrid').onchange=render;
 $('snapGrid').onchange=()=>status($('snapGrid').checked?'Grid snapping enabled':'Grid snapping disabled');
