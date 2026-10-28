@@ -323,7 +323,7 @@ function render(){
  ctx.save();ctx.beginPath();ctx.rect(o.x,o.y,dw,dh);ctx.clip();
 
  if(reference&&referenceVisible&&$('keepReference').checked){
-  try{ctx.globalAlpha=.65;ctx.drawImage(reference,o.x,o.y,dw,dh);ctx.globalAlpha=1}catch(e){}
+  try{ctx.globalAlpha=.65;const iw=reference.naturalWidth||reference.width,ih=reference.naturalHeight||reference.height,fit=Math.min(dw/iw,dh/ih),rw=iw*fit,rh=ih*fit,rx=o.x+(dw-rw)/2,ry=o.y+(dh-rh)/2;ctx.drawImage(reference,rx,ry,rw,rh);ctx.globalAlpha=1}catch(e){}
  }
 
  for(const sh of shapes){if(visible(sh))drawShape(sh,false)}
