@@ -160,6 +160,7 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <button id="selectTool" class="active">↖ Select</button>
 <button id="deleteBtn">⌫ Delete</button>
 <button id="duplicateBtn">▣ Duplicate</button><button id="centerSelectionBtn" title="Center selected vectors on the buildplate">Center on plate</button>
+<button id="cutJoinBtn" title="Combine selected overlapping closed vectors and join their outlines">✂ Cut &amp; Join</button>
 <button id="groupBtn">Group</button>
 <button id="ungroupBtn">Ungroup</button>
 
@@ -753,7 +754,23 @@ function convertSelectedTextToVectors(){
  if(!made.length){status('No letter outlines found.');return}snapshot();const old=src.map(s=>s.id);shapes=shapes.filter(s=>!old.includes(s.id));shapes.push(...made);selectedIds=made.map(s=>s.id);selected=selectedIds.at(-1);renderLayers();updateProps();render();status(`${made.length} text outline vectors created.`)
 }
 $('alignBtn').onclick=()=>{const before=historyState();if(alignSelectedShapes()){recordHistory(before);updateProps();render();status('Selected shapes aligned')}};
-$('groupBtn').onclick=()=>{
+$('cutJoinBtn').onclick=()=>{
+ const ids=Array.from(new Set(selectedIds.length?selectedIds:(selected?[selected]:[])));
+ const picked=ids.map(shapeById).filter(sh=>sh&&['rect','ellipse','polygon'].includes(sh.type)&&!sh.locked&&!layer(sh.layer).locked);
+ if(picked.length<2){status('Select at least two unlocked rectangles, ellipses or closed polygons to cut and join.');return}
+ let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+ for(const sh of picked){const pts=offsetSourcePoints(sh);if(!pts)continue;for(const p of pts){minX=Math.min(minX,p[0]);minY=Math.min(minY,p[1]);maxX=Math.max(maxX,p[0]);maxY=Math.max(maxY,p[1])}}
+ const spanX=maxX-minX,spanY=maxY-minY,requestedPpm=24,maxPixels=8000000,ppm=Math.min(requestedPpm,Math.sqrt(maxPixels/((spanX+2/requestedPpm)*(spanY+2/requestedPpm)))),pad=2/ppm,ox=minX-pad,oy=minY-pad,w=Math.ceil((spanX+2*pad)*ppm),h=Math.ceil((spanY+2*pad)*ppm);
+ if(w<2||h<2||w*h>8100000){status('These vectors cover too large an area to cut and join at once.');return}
+ const c=document.createElement('canvas');c.width=w;c.height=h;const cx=c.getContext('2d',{willReadFrequently:true});cx.fillStyle='#fff';
+ for(const sh of picked){const pts=offsetSourcePoints(sh);if(!pts||pts.length<3)continue;cx.beginPath();pts.forEach((p,i)=>{const x=(p[0]-ox)*ppm,y=(p[1]-oy)*ppm;if(i)cx.lineTo(x,y);else cx.moveTo(x,y)});cx.closePath();cx.fill()}
+ const data=cx.getImageData(0,0,w,h).data,mask=new Uint8Array(w*h);for(let i=0;i<mask.length;i++)mask[i]=data[i*4+3]>127&&data[i*4]>127?1:0;
+ const contours=traceMaskContours(mask,w,h,ppm,ox,oy,1,false);
+ if(!contours.length){status('No closed contours could be created from that selection.');return}
+ const source=picked[0],made=[];for(let i=0;i<contours.length;i++){const sh=makeOffsetShape(source,contours[i],'joined');if(sh){sh.name=(source.name||'Shape')+(contours.length>1?' joined '+(i+1):' joined');made.push(sh)}}
+ if(!made.length){status('No joined contours could be created.');return}
+ snapshot();const remove=new Set(picked.map(sh=>sh.id));shapes=shapes.filter(sh=>!remove.has(sh.id));shapes.push(...made);selectedIds=made.map(sh=>sh.id);selected=selectedIds[selectedIds.length-1];renderLayers();updateProps();render();status(`${picked.length} overlapping vectors cut and joined into ${made.length} contour${made.length===1?'':'s'}.`)
+};$('groupBtn').onclick=()=>{
  const ids=selectedIds.length?selectedIds:(selected?[selected]:[]);
  if(!ids.length)return;
  snapshot();
@@ -1307,4 +1324,8 @@ status(recovered?'Recovered your autosaved vectors and layers.':'Ready — impor
 
 </body>
 </html>
+
+
+
+
 
