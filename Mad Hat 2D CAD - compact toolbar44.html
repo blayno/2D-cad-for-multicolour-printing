@@ -39,7 +39,7 @@ header{height:72px;display:flex;align-items:center;gap:15px;padding:8px 16px;bac
 .tools button span{display:block;font-size:18px;margin-bottom:3px}
 .canvasWrap{display:flex;flex-direction:column;overflow:hidden;position:relative}
 .canvasTop{display:flex;gap:5px;align-items:center;flex-wrap:wrap;padding:7px;background:#171f2d;border-bottom:1px solid var(--line)}
-.canvasTop button{padding:7px 9px}.canvasZoom{display:flex;align-items:center;justify-content:flex-end;gap:5px;flex:0 0 100%;width:100%;padding-top:6px;border-top:1px solid var(--line)}
+.canvasTop button{padding:7px 9px}.canvasBottomTools{display:flex;align-items:center;gap:5px;flex:0 0 100%;width:100%}.canvasZoom{display:flex;align-items:center;justify-content:flex-end;gap:5px;margin-left:auto}
 .canvasArea{flex:1;min-height:0;position:relative;background:#111925}
 canvas{display:block;width:100%;height:100%;touch-action:none}
 .canvasFoot{height:38px;display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:#171f2d;color:var(--muted);font-size:12px}
@@ -163,11 +163,8 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <button id="cutJoinBtn" title="Click a vector section between intersections to trim it">✂ Cut</button>
 <button id="joinBtn" title="Join the two selected open vectors at their nearest endpoints">Join</button>
 <button id="textCutJoinBtn" title="Combine selected converted text outline vectors">Text Cut &amp; Join</button>
-<button id="groupBtn">Group</button>
-<button id="ungroupBtn">Ungroup</button>
+  <div class="canvasBottomTools"><button id="groupBtn">Group</button><button id="ungroupBtn">Ungroup</button><div class="canvasZoom"><button id="zoomOut">−</button><button id="zoomLabel">100%</button><button id="zoomIn">＋</button><button id="fitBtn2">Fit</button></div></div>
 
-
-<div class="canvasZoom"><button id="zoomOut">−</button><button id="zoomLabel">100%</button><button id="zoomIn">＋</button><button id="fitBtn2">Fit</button></div>
 </div>
 <div class="canvasArea"><canvas id="canvas" width="1200" height="800"></canvas></div>
 <div class="canvasFoot"><span id="canvasCoords">X: 0.0 · Y: 0.0 mm</span><span id="selectionInfo">Nothing selected</span><span id="canvasSize">180 × 180 mm</span></div>
