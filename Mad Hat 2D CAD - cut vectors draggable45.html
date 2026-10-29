@@ -553,7 +553,7 @@ canvas.addEventListener('pointerdown',e=>{
     if(!selectedIds.includes(hit.id)){selected=hit.id;selectedIds=hitIds}else{selected=hit.id}
     const members=selectedIds.map(shapeById).filter(Boolean);
     if(members.length&&members.every(sh=>!sh.locked&&!layer(sh.layer).locked)){
-     drag={kind:'moveGroup',sx:p.x,sy:p.y,items:members.map(sh=>({id:sh.id,ox:sh.x,oy:sh.y})),before:historyState(),moved:false};
+     drag={kind:'moveGroup',sx:p.x,sy:p.y,items:members.map(sh=>({id:sh.id,ox:sh.x,oy:sh.y,points:sh.type==='freehand'&&sh.points?sh.points.map(v=>[v[0],v[1]]):null})),before:historyState(),moved:false};
     }
    }
   }else if(!multi){
@@ -580,7 +580,7 @@ canvas.addEventListener('pointermove',e=>{
  if(tool==='scissors'&&!drag&&!drawing){canvas.style.cursor=scissorsCursor(!!findTrimCandidate(p));return}
  if(!drag&&drawing){const q=drawing.type==='line'?snapLinePoint(p):snap(p);if(drawing.centerOut){let rx=Math.abs(q.x-drawing.centerX),ry=Math.abs(q.y-drawing.centerY);if(e.shiftKey){const radius=Math.max(rx,ry);rx=radius;ry=radius}drawing.x=drawing.centerX-rx;drawing.y=drawing.centerY-ry;drawing.w=rx*2;drawing.h=ry*2}else{drawing.w=q.x-drawing.x;drawing.h=q.y-drawing.y}if(drawing.type==='freehand')drawing.points.push([q.x,q.y]);render();return}if(!drag)return;
  if(drag.kind==='pan'){pan.x=drag.px+(sc.x-drag.sx);pan.y=drag.py+(sc.y-drag.sy);render();return}if(drag.kind==='selectBox'){selectionBox.x2=p.x;selectionBox.y2=p.y;render();return}
-  if(drag.kind==='moveGroup'){const dx=p.x-drag.sx,dy=p.y-drag.sy;if(dx||dy)drag.moved=true;for(const item of drag.items){const sh=shapeById(item.id);if(sh){sh.x=item.ox+dx;sh.y=item.oy+dy}}render()}
+  if(drag.kind==='moveGroup'){const dx=p.x-drag.sx,dy=p.y-drag.sy;if(dx||dy)drag.moved=true;for(const item of drag.items){const sh=shapeById(item.id);if(sh){sh.x=item.ox+dx;sh.y=item.oy+dy;if(item.points&&sh.type==='freehand')sh.points=item.points.map(v=>[v[0]+dx,v[1]+dy])}}render()}
   if(drag.kind==='resizeSelection'){applySelectionResize(drag,p,e.shiftKey);render()}
 });
 canvas.addEventListener('pointerup',()=>{
