@@ -466,9 +466,10 @@ function renderLayers(){
  layers.slice().reverse().forEach(l=>{
   const row=document.createElement('div');
   row.className='layer'+(l.id===activeLayer?' selected':'');
-  row.innerHTML=`<button title="Toggle visibility">${l.visible?'◉':'○'}</button><span class="swatch" style="background:${l.color}"></span><span class="lname" title="${esc(l.name)}">${esc(l.name)}</span><input type="color" value="${l.color}" title="Layer colour"><button title="Lock layer">${l.locked?'🔒':'🔓'}</button>`;
+  row.innerHTML=`<button title="Toggle visibility">${l.visible?'◉':'○'}</button><span class="swatch" style="background:${l.color}"></span><span class="lname" title="${esc(l.name)}">${esc(l.name)}</span><input type="color" value="${l.color}" title="Layer colour"><button title="Lock layer">${l.locked?'🔒':'🔓'}</button><button title="Rename layer" aria-label="Rename ${esc(l.name)}">✎</button>`;
   const bs=row.querySelectorAll('button');
   bs[0].onclick=()=>{l.visible=!l.visible;renderLayers();render()};
+  bs[2].onclick=e=>{e.stopPropagation();const value=prompt('Rename layer:',l.name);if(value===null)return;const name=value.trim();if(!name){status('Layer names cannot be blank.');return}if(layers.some(other=>other!==l&&other.name.toLowerCase()===name.toLowerCase())){status('Another layer already has that name.');return}snapshot();l.name=name;renderLayers();status(`Layer renamed to ${name}.`)};
   row.querySelector('.lname').onclick=()=>{activeLayer=l.id;selected=null;selectedIds=[];renderLayers();updateProps();render()};
   row.querySelector('input').oninput=e=>{l.color=e.target.value;shapes.filter(s=>s.layer===l.id).forEach(s=>s.fill=l.color);render()};
   bs[1].onclick=()=>{l.locked=!l.locked;renderLayers()};
@@ -1271,23 +1272,11 @@ function exportSvg(list=shapes,name='mad-hat-design.svg'){
  download(new Blob([s],{type:'image/svg+xml;charset=utf-8'}),name);
  status('SVG exported');
 }
-$('exportSvg').onclick=$('exportSvgTop').onclick=()=>{
- const mode=$('exportMode').value;
- const list=mode==='selected'&&selected?[shapeById(selected)]:shapes;
- if(mode==='selected'&&!selected){alert('Select a shape first.');return}
- exportSvg(list,mode==='selected'?'mad-hat-selected.svg':'mad-hat-design.svg');
-};
-$('exportLayers').onclick=()=>{
- let idx=0;
- for(const l of layers){
-  const list=shapes.filter(s=>s.layer===l.id);
-  if(!list.length)continue;
-  exportSvg(list,`mad-hat-${safeName(l.name)}.svg`);idx++;
- }
- if(!idx)alert('There are no shapes to export yet.');
- else status(`Started export for ${idx} layers. Your browser may ask to allow multiple downloads.`);
-};
-function safeName(s){return String(s).toLowerCase().replace(/[^a-z0-9-_]+/g,'-').replace(/^-|-$/g,'')||'layer'}
+function layerExportName(list){const names=[...new Set(list.filter(sh=>visible(sh)).map(sh=>layer(sh.layer).name))];return safeName(names.length?names.join(' + '):layer(activeLayer).name)}
+function exportEachLayer(){let idx=0;for(const l of layers){const list=shapes.filter(s=>s.layer===l.id&&visible(s));if(!list.length)continue;exportSvg(list,`${safeName(l.name)}.svg`);idx++}if(!idx)alert('There are no visible shapes to export yet.');else status(`Started export for ${idx} layers. Your browser may ask to allow multiple downloads.`)}
+$('exportSvg').onclick=$('exportSvgTop').onclick=()=>{const mode=$('exportMode').value;if(mode==='layers'){exportEachLayer();return}const list=mode==='selected'&&selected?[shapeById(selected)]:shapes;if(mode==='selected'&&!selected){alert('Select a shape first.');return}exportSvg(list,`${layerExportName(list)}.svg`)};
+$('exportLayers').onclick=exportEachLayer;
+function safeName(s){return String(s).replace(/[<>:"/\\|?*\x00-\x1F]/g,'-').trim().replace(/[. ]+$/,'')||'layer'}
 
 $('exportPng').onclick=()=>{
  const a=document.createElement('a');
