@@ -1241,7 +1241,8 @@ function svgString(list,includeRef=false){
   }
  }
 
- return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W*units}${mm}" height="${H*units}${mm}" viewBox="0 0 ${W} ${H}">\n${parts.join('\n')}\n</svg>`;
+ const halfW=W/2,halfH=H/2;
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W*units}${mm}" height="${H*units}${mm}" viewBox="${-halfW} ${-halfH} ${W} ${H}">\n<g transform="translate(${-halfW} ${-halfH})">\n${parts.join('\n')}\n</g>\n</svg>`;
 }
 function exportSvg(list=shapes,name='mad-hat-design.svg'){
  const s=svgString(list,$('exportRef').checked);
@@ -1324,6 +1325,8 @@ status(recovered?'Recovered your autosaved vectors and layers.':'Ready — impor
 
 </body>
 </html>
+
+
 
 
 
