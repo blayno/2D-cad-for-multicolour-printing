@@ -112,8 +112,8 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <button data-tool="line"><span>／</span>Line</button>
 <button data-tool="polygon"><span>⬡</span>Polygon</button>
 <button data-tool="pen"><span>⌁</span>Freehand</button>
-<button data-tool="brush" title="Paint a red SVG outline"><span>🖌</span>Outline Brush</button>
-<button data-tool="brushEraser" title="Erase painted brush areas"><span>◉</span>Brush Eraser</button>
+<button data-tool="brush" title="Paint a red SVG outline"><span>🖌</span>Paint</button>
+<button data-tool="brushEraser" title="Erase painted brush areas"><span>◉</span>Erase</button>
 <button data-tool="text"><span>T</span>Text</button>
 <button id="undoBtn"><span>↶</span>Undo</button>
 <button id="redoBtn"><span>↷</span>Redo</button>
@@ -311,7 +311,18 @@ function newShape(type,x,y,w,h,extra={}){
 function shapeById(id){return shapes.find(s=>s.id===id)}
 function visible(s){return s.visible!==false&&layer(s.layer).visible!==false}
 function isSelected(s){return selectedIds.includes(s.id)||selected===s.id}
-function groupMemberIds(sh){return sh&&sh.group?shapes.filter(item=>item.group===sh.group).map(item=>item.id):sh?[sh.id]:[]}
+function brushSelectionIds(ids){
+ const base=Array.from(new Set(ids||[])),brushLayers=new Set(base.map(shapeById).filter(isBrushOperation).map(sh=>sh.layer));
+ if(!brushLayers.size)return base;
+ // Paint and its destination-out erasures form one visual object per layer.
+ // Moving only the paint path would uncover the original un-erased stroke.
+ const related=shapes.filter(item=>brushLayers.has(item.layer)&&isBrushOperation(item)).map(item=>item.id);
+ return Array.from(new Set([...base,...related]));
+}
+function groupMemberIds(sh){
+ const members=sh&&sh.group?shapes.filter(item=>item.group===sh.group).map(item=>item.id):sh?[sh.id]:[];
+ return sh&&isBrushOperation(sh)?brushSelectionIds(members):members;
+}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
 function render(){
@@ -375,7 +386,7 @@ function drawBrushComposite(){
  const ops=shapes.filter(sh=>visible(sh)&&isBrushOperation(sh));if(drawing&&isBrushOperation(drawing))ops.push(drawing);if(!ops.length)return;
  const ratio=window.devicePixelRatio||1,tmp=document.createElement('canvas');tmp.width=canvas.width;tmp.height=canvas.height;
  const tc=tmp.getContext('2d');tc.setTransform(ratio,0,0,ratio,0,0);
- for(const sh of ops){if(!sh.points||!sh.points.length)continue;tc.globalCompositeOperation=isOutlineEraser(sh)?'destination-out':'source-over';tc.strokeStyle='#ff0000';tc.lineWidth=Math.max(.05,(+sh.strokeWidth||1)*scale());tc.lineCap=sh.lineCap==='square'?'square':'round';tc.lineJoin='round';tc.beginPath();let p=toScreen(sh.points[0][0],sh.points[0][1]);tc.moveTo(p.x,p.y);for(let i=1;i<sh.points.length;i++){p=toScreen(sh.points[i][0],sh.points[i][1]);tc.lineTo(p.x,p.y)}if(sh.points.length===1)tc.lineTo(p.x+.01,p.y);tc.stroke()}
+ for(const sh of ops){if(!sh.points||!sh.points.length)continue;tc.globalCompositeOperation=isOutlineEraser(sh)?'destination-out':'source-over';tc.strokeStyle='#ff0000';tc.lineWidth=Math.max(.05,(+sh.strokeWidth||1)*scale());tc.lineCap=sh.lineCap==='square'?'square':sh.lineCap==='butt'?'butt':'round';tc.lineJoin='round';tc.beginPath();let p=toScreen(sh.points[0][0],sh.points[0][1]);tc.moveTo(p.x,p.y);for(let i=1;i<sh.points.length;i++){p=toScreen(sh.points[i][0],sh.points[i][1]);tc.lineTo(p.x,p.y)}if(sh.points.length===1)tc.lineTo(p.x+.01,p.y);tc.stroke()}
  tc.globalCompositeOperation='source-over';ctx.drawImage(tmp,0,0,canvas.clientWidth,canvas.clientHeight);
 }
 
@@ -580,7 +591,8 @@ canvas.addEventListener('pointerdown',e=>{
    if(multi){
     const remove=hitIds.every(id=>selectedIds.includes(id));
     selectedIds=remove?selectedIds.filter(id=>!hitIds.includes(id)):Array.from(new Set([...selectedIds,...hitIds]));
-    selected=selectedIds.length?selectedIds[selectedIds.length-1]:null;
+    selectedIds=brushSelectionIds(selectedIds);
+   selected=selectedIds.filter(id=>{const item=shapeById(id);return item&&!isOutlineEraser(item)}).at(-1)||null;
    }else{
     if(!selectedIds.includes(hit.id)){selected=hit.id;selectedIds=hitIds}else{selected=hit.id}
     const members=selectedIds.map(shapeById).filter(Boolean);
@@ -632,9 +644,13 @@ canvas.addEventListener('pointerup',()=>{
    delete drawing.centerOut;delete drawing.centerX;delete drawing.centerY;
    const completed=drawing;
    if(completed.outlineEraser){
-    const count=eraseBrushGeometry(completed);
+    // Keep the eraser as a real destination-out brush operation.
+    // This subtracts only the exact swept brush footprint from the painted
+    // pixels; it does not split/rebuild the stroke's centreline, which caused
+    // side-swipe erasing to remove an entire length of a thick stroke.
+    shapes.push(completed);
     selected=null;selectedIds=[];
-    drawing=null;renderLayers();updateProps();render();status(count?`Paint erased from ${count} stroke(s)`:'No brush paint touched');
+    drawing=null;renderLayers();updateProps();render();status('Paint erased with exact brush footprint');
    }else{
     shapes.push(completed);selected=completed.id;selectedIds=[completed.id];
     drawing=null;renderLayers();updateProps();render();status(completed.outlineBrush?'Paint stroke added':'Shape created');
@@ -1270,37 +1286,86 @@ function isOutlineEraser(sh){return !!(sh&&sh.type==='freehand'&&sh.outlineErase
 function isBrushOperation(sh){return isOutlineBrush(sh)||isOutlineEraser(sh)}
 
 function eraseBrushGeometry(eraser){
- const eraserPts=eraser.points||[];
- if(!eraserPts.length)return 0;
- const eraserSegments=[];
- for(let i=1;i<eraserPts.length;i++)eraserSegments.push([{x:eraserPts[i-1][0],y:eraserPts[i-1][1]},{x:eraserPts[i][0],y:eraserPts[i][1]}]);
- if(!eraserSegments.length)eraserSegments.push([{x:eraserPts[0][0],y:eraserPts[0][1]},{x:eraserPts[0][0],y:eraserPts[0][1]}]);
- const original=shapes.slice(), replacements=[];
- let changed=0;
- for(const sh of original){
-  if(!isOutlineBrush(sh)||!sh.points||sh.points.length<2||!visible(sh))continue;
-  const radius=(Math.max(.05,+sh.strokeWidth||1)+Math.max(.05,+eraser.strokeWidth||1))/2;
-  const step=Math.max(.15,Math.min(radius/2,.5));
-  const samples=[];
-  for(let i=1;i<sh.points.length;i++){
-   const a=sh.points[i-1],b=sh.points[i],len=Math.hypot(b[0]-a[0],b[1]-a[1]),n=Math.max(1,Math.ceil(len/step));
-   for(let j=0;j<n;j++){const t=j/n;samples.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t])}
+  const eraserPts=eraser.points||[];
+  if(!eraserPts.length)return 0;
+
+  // The eraser footprint is exactly its displayed diameter. Do not add the
+  // painted stroke radius: doing so made a narrow swipe remove a much longer
+  // section of a thick painted line.
+  const radius=Math.max(.05,+eraser.strokeWidth||1)/2;
+  const eraserSegments=[];
+  for(let i=1;i<eraserPts.length;i++){
+    eraserSegments.push([
+      {x:eraserPts[i-1][0],y:eraserPts[i-1][1]},
+      {x:eraserPts[i][0],y:eraserPts[i][1]}
+    ]);
   }
-  samples.push(sh.points[sh.points.length-1]);
-  const outside=pt=>!eraserSegments.some(([a,b])=>segmentDistance({x:pt[0],y:pt[1]},a,b)<=radius);
-  const fragments=[];let run=[];
-  for(const pt of samples){if(outside(pt)){run.push(pt)}else if(run.length){if(run.length>1)fragments.push(run);run=[]}}
-  if(run.length>1)fragments.push(run);
-  if(fragments.length===1&&fragments[0].length===samples.length)continue;
-  changed++;
-  const index=shapes.findIndex(item=>item.id===sh.id);if(index<0)continue;
-  if(!fragments.length){shapes.splice(index,1);continue}
-  const makeFragment=(points,id,name)=>{const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);return {...sh, id, name, points, x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)}};
-  shapes[index]=makeFragment(fragments[0],sh.id,sh.name);
-  for(let k=1;k<fragments.length;k++)replacements.push(makeFragment(fragments[k],nextId++,sh.name+' (cut)'));
- }
- shapes.push(...replacements);
- return changed;
+  if(!eraserSegments.length)eraserSegments.push([
+    {x:eraserPts[0][0],y:eraserPts[0][1]},
+    {x:eraserPts[0][0],y:eraserPts[0][1]}
+  ]);
+
+  const original=shapes.slice(),replacements=[];
+  let changed=0;
+  for(const sh of original){
+    if(!isOutlineBrush(sh)||!sh.points||sh.points.length<2||!visible(sh))continue;
+
+    // Sample finely relative to the painted line width so cut positions do
+    // not jump along the stroke when the eraser is moved by a small amount.
+    const step=Math.max(.025,Math.min((+sh.strokeWidth||1)/10,radius/8,.1));
+    const samples=[];
+    for(let i=1;i<sh.points.length;i++){
+      const a=sh.points[i-1],b=sh.points[i];
+      const len=Math.hypot(b[0]-a[0],b[1]-a[1]);
+      const n=Math.max(1,Math.ceil(len/step));
+      for(let j=0;j<n;j++){
+        const t=j/n;
+        samples.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]);
+      }
+    }
+    samples.push(sh.points[sh.points.length-1]);
+
+    const erased=pt=>eraserSegments.some(([a,b])=>
+      segmentDistance({x:pt[0],y:pt[1]},a,b)<=radius
+    );
+    const fragments=[];
+    let run=[],cutAtStart=false;
+    for(let i=0;i<samples.length;i++){
+      const pt=samples[i];
+      if(!erased(pt)){
+        if(!run.length)cutAtStart=i>0;
+        run.push(pt);
+      }else if(run.length){
+        if(run.length>1)fragments.push({points:run,cutStart:cutAtStart,cutEnd:true});
+        run=[];
+      }
+    }
+    if(run.length>1)fragments.push({points:run,cutStart:cutAtStart,cutEnd:false});
+
+    if(fragments.length===1&&fragments[0].points.length===samples.length&&!fragments[0].cutStart)continue;
+    changed++;
+    const index=shapes.findIndex(item=>item.id===sh.id);
+    if(index<0)continue;
+    if(!fragments.length){shapes.splice(index,1);continue}
+
+    const makeFragment=(fragment,id,name)=>{
+      const points=fragment.points,xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);
+      return {
+        ...sh,id,name,points,
+        // Butt caps at newly cut ends keep the cut edge crisp and prevent
+        // rounded caps from making the erased gap look larger than the brush.
+        lineCap:(fragment.cutStart||fragment.cutEnd)?'butt':(sh.lineCap||'round'),
+        x:Math.min(...xs),y:Math.min(...ys),
+        w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)
+      };
+    };
+    shapes[index]=makeFragment(fragments[0],sh.id,sh.name);
+    for(let k=1;k<fragments.length;k++){
+      replacements.push(makeFragment(fragments[k],nextId++,sh.name+' (cut)'));
+    }
+  }
+  shapes.push(...replacements);
+  return changed;
 }
 function brushContours(strokes){
  const W=docW(),H=docH(),res=Math.min(8,2400/Math.max(W,H)),width=Math.max(1,Math.ceil(W*res)),height=Math.max(1,Math.ceil(H*res)),sx=width/W,sy=height/H;
