@@ -43,6 +43,7 @@ header{height:72px;display:flex;align-items:center;gap:15px;padding:8px 16px;bac
 .canvasArea{flex:1;min-height:0;position:relative;background:#111925}
 #brushCursor{position:absolute;display:none;z-index:3;box-sizing:border-box;pointer-events:none;transform:translate(-50%,-50%);border:2px solid #ff3030;background:rgba(255,40,40,.16);box-shadow:0 0 0 1px rgba(255,255,255,.55)}
 #brushCursor.round{border-radius:50%}
+#brushCursor.eraser{border-color:#f5f7fb;background:rgba(245,247,251,.16);box-shadow:0 0 0 1px rgba(16,20,29,.8)}
 canvas{display:block;width:100%;height:100%;touch-action:none}
 .canvasFoot{height:38px;display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:#171f2d;color:var(--muted);font-size:12px}
 .layerList{display:flex;flex-direction:column;gap:5px}
@@ -112,6 +113,7 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <button data-tool="polygon"><span>⬡</span>Polygon</button>
 <button data-tool="pen"><span>⌁</span>Freehand</button>
 <button data-tool="brush" title="Paint a red SVG outline"><span>🖌</span>Outline Brush</button>
+<button data-tool="brushEraser" title="Erase painted brush areas"><span>◉</span>Brush Eraser</button>
 <button data-tool="text"><span>T</span>Text</button>
 <button id="undoBtn"><span>↶</span>Undo</button>
 <button id="redoBtn"><span>↷</span>Redo</button>
@@ -339,8 +341,9 @@ function render(){
   try{ctx.globalAlpha=.65;const iw=reference.naturalWidth||reference.width,ih=reference.naturalHeight||reference.height,fit=Math.min(dw/iw,dh/ih),rw=iw*fit,rh=ih*fit,rx=o.x+(dw-rw)/2,ry=o.y+(dh-rh)/2;ctx.drawImage(reference,rx,ry,rw,rh);ctx.globalAlpha=1}catch(e){}
  }
 
- for(const sh of shapes){if(visible(sh))drawShape(sh,false)}
- if(drawing)drawShape(drawing,true);
+ for(const sh of shapes){if(visible(sh)&&!isBrushOperation(sh))drawShape(sh,false)}
+ drawBrushComposite();
+ if(drawing&&!isBrushOperation(drawing))drawShape(drawing,true);
 
  for(const id of selectedIds){
   const sel=shapeById(id);if(!sel||!visible(sel))continue;
@@ -368,6 +371,14 @@ const AUTOSAVE_KEY='madHat2dCad.autosave.v1';let autosaveTimer=null;
 function autosavePayload(){return {version:1,document:{width:docW(),height:docH()},shapes,layers,activeLayer,nextId,nextLayer,savedAt:Date.now()}}
 function scheduleAutosave(){clearTimeout(autosaveTimer);autosaveTimer=setTimeout(()=>{try{localStorage.setItem(AUTOSAVE_KEY,JSON.stringify(autosavePayload()))}catch(err){status('Autosave could not save. Use Save to download a project file.')}},700)}
 function recoverAutosave(){try{const raw=localStorage.getItem(AUTOSAVE_KEY);if(!raw)return false;const d=JSON.parse(raw);if(!d||!Array.isArray(d.shapes))return false;shapes=d.shapes.map(sh=>({...sh,layer:1}));layers=[{id:1,name:'Layer 1',color:'#62d6bd',visible:true,locked:false}];activeLayer=1;nextId=d.nextId||Math.max(0,...shapes.map(sh=>sh.id))+1;nextLayer=2;if(d.document){$('docW').value=d.document.width||180;$('docH').value=d.document.height||180}selected=null;selectedIds=[];return true}catch(err){return false}}
+function drawBrushComposite(){
+ const ops=shapes.filter(sh=>visible(sh)&&isBrushOperation(sh));if(drawing&&isBrushOperation(drawing))ops.push(drawing);if(!ops.length)return;
+ const ratio=window.devicePixelRatio||1,tmp=document.createElement('canvas');tmp.width=canvas.width;tmp.height=canvas.height;
+ const tc=tmp.getContext('2d');tc.setTransform(ratio,0,0,ratio,0,0);
+ for(const sh of ops){if(!sh.points||!sh.points.length)continue;tc.globalCompositeOperation=isOutlineEraser(sh)?'destination-out':'source-over';tc.strokeStyle='#ff0000';tc.lineWidth=Math.max(.05,(+sh.strokeWidth||1)*scale());tc.lineCap=sh.lineCap==='square'?'square':'round';tc.lineJoin='round';tc.beginPath();let p=toScreen(sh.points[0][0],sh.points[0][1]);tc.moveTo(p.x,p.y);for(let i=1;i<sh.points.length;i++){p=toScreen(sh.points[i][0],sh.points[i][1]);tc.lineTo(p.x,p.y)}if(sh.points.length===1)tc.lineTo(p.x+.01,p.y);tc.stroke()}
+ tc.globalCompositeOperation='source-over';ctx.drawImage(tmp,0,0,canvas.clientWidth,canvas.clientHeight);
+}
+
 function drawShape(sh,preview){
  const p=toScreen(sh.x,sh.y),q=toScreen(sh.x+sh.w,sh.y+sh.h);
  const w=q.x-p.x,h=q.y-p.y;
@@ -417,6 +428,7 @@ function drawShape(sh,preview){
 }
 
 function drawSelectionOutline(sh){
+ if(isBrushOperation(sh))return;
  const p=toScreen(sh.x,sh.y),q=toScreen(sh.x+sh.w,sh.y+sh.h),w=q.x-p.x,h=q.y-p.y;
  ctx.save();ctx.beginPath();
  if(sh.type==='rect'||sh.type==='image')ctx.rect(p.x,p.y,w,h);
@@ -472,7 +484,7 @@ function pointIn(sh,p){
  if(sh.type==='rect'&&sh.fill==='none'&&box)return Math.min(Math.abs(p.x-left),Math.abs(p.x-right),Math.abs(p.y-top),Math.abs(p.y-bottom))<=tol;
  return box;
 }
-function pick(p){for(let i=shapes.length-1;i>=0;i--){const sh=shapes[i];if(visible(sh)&&pointIn(sh,p))return sh}return null}
+function pick(p){for(let i=shapes.length-1;i>=0;i--){const sh=shapes[i];if(isOutlineEraser(sh))continue;if(visible(sh)&&pointIn(sh,p))return sh}return null}
 function renderLayers(){
  const el=$('layerList');el.innerHTML='';
  layers.slice().reverse().forEach(l=>{
@@ -504,12 +516,12 @@ function setTool(t){
  document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));
  $('selectTool').classList.toggle('active',t==='select');
  $('cutJoinBtn').classList.toggle('active',t==='scissors');
- canvas.style.cursor=t==='brush'?'none':t==='pan'?'grab':t==='select'?'default':t==='scissors'?scissorsCursor(false):'crosshair';
+ canvas.style.cursor=(t==='brush'||t==='brushEraser')?'none':t==='pan'?'grab':t==='select'?'default':t==='scissors'?scissorsCursor(false):'crosshair';
  updateBrushCursor();
 }
 function updateBrushCursor(p=lastCanvasPointer){
- const el=$('brushCursor');if(!el)return;if(tool!=='brush'||!p){el.style.display='none';return}
- const d=Math.max(2,(+$('brushSize').value||1)*scale());el.style.width=d+'px';el.style.height=d+'px';el.style.left=p.x+'px';el.style.top=p.y+'px';el.classList.toggle('round',$('brushShape').value==='round');el.style.display='block';
+ const el=$('brushCursor');if(!el)return;if((tool!=='brush'&&tool!=='brushEraser')||!p){el.style.display='none';return}
+ const d=Math.max(2,(+$('brushSize').value||1)*scale());el.style.width=d+'px';el.style.height=d+'px';el.style.left=p.x+'px';el.style.top=p.y+'px';el.classList.toggle('round',$('brushShape').value==='round');el.classList.toggle('eraser',tool==='brushEraser');el.style.display='block';
 }
 function scissorsCursor(open){const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="7" cy="22" r="4" fill="none" stroke="%23f0a000" stroke-width="2.5"/><circle cx="7" cy="8" r="4" fill="none" stroke="%23f0a000" stroke-width="2.5"/><path d="M10 10 L27 ${open?'2':'13'} M10 20 L27 ${open?'30':'17'} M11 15 L27 15" fill="none" stroke="%23edf2fa" stroke-width="2.5" stroke-linecap="round"/></svg>`;return `url("data:image/svg+xml,${svg}") 7 15, crosshair`}
 function pointer(e){
@@ -586,18 +598,18 @@ canvas.addEventListener('pointerdown',e=>{
  if(layer(activeLayer).locked){status('This layer is locked. Unlock it to draw.');return}
  snapshot();
  drawing={
-  id:nextId++,type:(tool==='pen'||tool==='brush')?'freehand':tool,x:p.x,y:p.y,w:0,h:0,
+  id:nextId++,type:(tool==='pen'||tool==='brush'||tool==='brushEraser')?'freehand':tool,x:p.x,y:p.y,w:0,h:0,
   centerOut:['rect','ellipse','polygon'].includes(tool),centerX:p.x,centerY:p.y,
    fill:'none',stroke:tool==='brush'?'#ff0000':'#ffffff',
-  strokeWidth:tool==='brush'?+$('brushSize').value:tool==='line'||tool==='pen'?.5:0,
-  lineCap:tool==='brush'?$('brushShape').value:'round',
-  outlineBrush:tool==='brush',
-  layer:activeLayer,name:tool+' '+nextId,visible:true,
-  points:tool==='polygon'?[[0,1],[.5,0],[1,1]]:(tool==='pen'||tool==='brush')?[[p.x,p.y],[p.x,p.y]]:undefined
+  strokeWidth:(tool==='brush'||tool==='brushEraser')?+$('brushSize').value:tool==='line'||tool==='pen'?.5:0,
+  lineCap:(tool==='brush'||tool==='brushEraser')?$('brushShape').value:'round',
+  outlineBrush:tool==='brush',outlineEraser:tool==='brushEraser',
+  layer:activeLayer,name:(tool==='brushEraser'?'Erase paint ':tool+' ')+nextId,visible:true,
+  points:tool==='polygon'?[[0,1],[.5,0],[1,1]]:(tool==='pen'||tool==='brush'||tool==='brushEraser')?[[p.x,p.y],[p.x,p.y]]:undefined
  };
 });
 
-canvas.addEventListener('pointerleave',()=>{if(tool==='brush')$('brushCursor').style.display='none'});
+canvas.addEventListener('pointerleave',()=>{if(tool==='brush'||tool==='brushEraser')$('brushCursor').style.display='none'});
 canvas.addEventListener('pointermove',e=>{
  const sc=pointer(e),p=toDoc(sc.x,sc.y);$('canvasCoords').textContent=`X: ${p.x.toFixed(1)} · Y: ${p.y.toFixed(1)} mm`;
  if(tool==='scissors'&&!drag&&!drawing){canvas.style.cursor=scissorsCursor(!!findTrimCandidate(p));return}
@@ -618,15 +630,22 @@ canvas.addEventListener('pointerup',()=>{
     if(drawing.h<0){drawing.y+=drawing.h;drawing.h=Math.abs(drawing.h)}
    }
    delete drawing.centerOut;delete drawing.centerX;delete drawing.centerY;
-   shapes.push(drawing);selected=drawing.id;selectedIds=[drawing.id];
-  drawing=null;renderLayers();updateProps();render();status('Shape created');
+   const completed=drawing;
+   if(completed.outlineEraser){
+    const count=eraseBrushGeometry(completed);
+    selected=null;selectedIds=[];
+    drawing=null;renderLayers();updateProps();render();status(count?`Paint erased from ${count} stroke(s)`:'No brush paint touched');
+   }else{
+    shapes.push(completed);selected=completed.id;selectedIds=[completed.id];
+    drawing=null;renderLayers();updateProps();render();status(completed.outlineBrush?'Paint stroke added':'Shape created');
+   }
  }
 
  if(drag&&drag.kind==='selectBox'&&selectionBox){
   const x1=Math.min(selectionBox.x1,selectionBox.x2),x2=Math.max(selectionBox.x1,selectionBox.x2);
   const y1=Math.min(selectionBox.y1,selectionBox.y2),y2=Math.max(selectionBox.y1,selectionBox.y2);
   if(Math.abs(x2-x1)>.5||Math.abs(y2-y1)>.5){
-   selectedIds=shapes.filter(sh=>visible(sh)&&!sh.locked&&!layer(sh.layer).locked&&sh.x>=x1&&sh.y>=y1&&sh.x+sh.w<=x2&&sh.y+sh.h<=y2).map(sh=>sh.id);
+   selectedIds=shapes.filter(sh=>!isOutlineEraser(sh)&&visible(sh)&&!sh.locked&&!layer(sh.layer).locked&&sh.x>=x1&&sh.y>=y1&&sh.x+sh.w<=x2&&sh.y+sh.h<=y2).map(sh=>sh.id);
    selected=selectedIds.length?selectedIds[selectedIds.length-1]:null;
    status(selectedIds.length?`${selectedIds.length} shapes selected`:'No shapes inside selection box');
   }
@@ -1247,11 +1266,47 @@ function xml(s){
  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 }
 function isOutlineBrush(sh){return !!(sh&&sh.type==='freehand'&&(sh.outlineBrush||((sh.stroke||'').toLowerCase()==='#ff0000'&&(+sh.strokeWidth||0)>0)))}
+function isOutlineEraser(sh){return !!(sh&&sh.type==='freehand'&&sh.outlineEraser)}
+function isBrushOperation(sh){return isOutlineBrush(sh)||isOutlineEraser(sh)}
+
+function eraseBrushGeometry(eraser){
+ const eraserPts=eraser.points||[];
+ if(!eraserPts.length)return 0;
+ const eraserSegments=[];
+ for(let i=1;i<eraserPts.length;i++)eraserSegments.push([{x:eraserPts[i-1][0],y:eraserPts[i-1][1]},{x:eraserPts[i][0],y:eraserPts[i][1]}]);
+ if(!eraserSegments.length)eraserSegments.push([{x:eraserPts[0][0],y:eraserPts[0][1]},{x:eraserPts[0][0],y:eraserPts[0][1]}]);
+ const original=shapes.slice(), replacements=[];
+ let changed=0;
+ for(const sh of original){
+  if(!isOutlineBrush(sh)||!sh.points||sh.points.length<2||!visible(sh))continue;
+  const radius=(Math.max(.05,+sh.strokeWidth||1)+Math.max(.05,+eraser.strokeWidth||1))/2;
+  const step=Math.max(.15,Math.min(radius/2,.5));
+  const samples=[];
+  for(let i=1;i<sh.points.length;i++){
+   const a=sh.points[i-1],b=sh.points[i],len=Math.hypot(b[0]-a[0],b[1]-a[1]),n=Math.max(1,Math.ceil(len/step));
+   for(let j=0;j<n;j++){const t=j/n;samples.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t])}
+  }
+  samples.push(sh.points[sh.points.length-1]);
+  const outside=pt=>!eraserSegments.some(([a,b])=>segmentDistance({x:pt[0],y:pt[1]},a,b)<=radius);
+  const fragments=[];let run=[];
+  for(const pt of samples){if(outside(pt)){run.push(pt)}else if(run.length){if(run.length>1)fragments.push(run);run=[]}}
+  if(run.length>1)fragments.push(run);
+  if(fragments.length===1&&fragments[0].length===samples.length)continue;
+  changed++;
+  const index=shapes.findIndex(item=>item.id===sh.id);if(index<0)continue;
+  if(!fragments.length){shapes.splice(index,1);continue}
+  const makeFragment=(points,id,name)=>{const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);return {...sh, id, name, points, x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)}};
+  shapes[index]=makeFragment(fragments[0],sh.id,sh.name);
+  for(let k=1;k<fragments.length;k++)replacements.push(makeFragment(fragments[k],nextId++,sh.name+' (cut)'));
+ }
+ shapes.push(...replacements);
+ return changed;
+}
 function brushContours(strokes){
  const W=docW(),H=docH(),res=Math.min(8,2400/Math.max(W,H)),width=Math.max(1,Math.ceil(W*res)),height=Math.max(1,Math.ceil(H*res)),sx=width/W,sy=height/H;
  const mask=document.createElement('canvas');mask.width=width;mask.height=height;
  const mc=mask.getContext('2d',{willReadFrequently:true});mc.setTransform(sx,0,0,sy,0,0);mc.fillStyle='#000';mc.strokeStyle='#fff';
- for(const sh of strokes){if(!sh.points||!sh.points.length)continue;mc.beginPath();mc.lineWidth=Math.max(.05,+sh.strokeWidth||1);mc.lineCap=sh.lineCap==='square'?'square':'round';mc.lineJoin='round';mc.moveTo(sh.points[0][0],sh.points[0][1]);for(let i=1;i<sh.points.length;i++)mc.lineTo(sh.points[i][0],sh.points[i][1]);if(sh.points.length===1)mc.lineTo(sh.points[0][0]+.001,sh.points[0][1]);mc.stroke()}
+ for(const sh of strokes){if(!sh.points||!sh.points.length)continue;mc.globalCompositeOperation=isOutlineEraser(sh)?'destination-out':'source-over';mc.beginPath();mc.lineWidth=Math.max(.05,+sh.strokeWidth||1);mc.lineCap=sh.lineCap==='square'?'square':'round';mc.lineJoin='round';mc.moveTo(sh.points[0][0],sh.points[0][1]);for(let i=1;i<sh.points.length;i++)mc.lineTo(sh.points[i][0],sh.points[i][1]);if(sh.points.length===1)mc.lineTo(sh.points[0][0]+.001,sh.points[0][1]);mc.stroke()}
  const data=mc.getImageData(0,0,width,height).data,edges=[],key=(x,y)=>x+','+y;
  const solid=(x,y)=>x>=0&&y>=0&&x<width&&y<height&&data[(y*width+x)*4+3]>96;
  for(let y=0;y<height;y++)for(let x=0;x<width;x++)if(solid(x,y)){
@@ -1276,7 +1331,7 @@ function svgString(list,includeRef=false){
  const W=docW(),H=docH();
  const units=mm==='mm'?1:96/25.4;
  const parts=[];
- const brushShapes=list.filter(sh=>visible(sh)&&isOutlineBrush(sh));
+ const brushShapes=list.filter(sh=>visible(sh)&&isBrushOperation(sh));
 
  if(includeRef&&reference){
   try{
@@ -1289,7 +1344,7 @@ function svgString(list,includeRef=false){
  }
 
  for(const sh of list){
-  if(!visible(sh)||isOutlineBrush(sh))continue;
+  if(!visible(sh)||isBrushOperation(sh))continue;
   const fill=sh.fill;
   const stroke=$('exportStroke').checked?sh.stroke:'none';
   const sw=$('exportStroke').checked?sh.strokeWidth:0;
