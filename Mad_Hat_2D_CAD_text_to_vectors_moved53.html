@@ -207,7 +207,7 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <button id="cutJoinBtn" title="Click a vector section between intersections to trim it">✂ Cut</button>
 <button id="joinBtn" title="Join the two selected open vectors at their nearest endpoints">Join</button>
 <button id="textCutJoinBtn" title="Combine selected converted text outline vectors">Text Cut &amp; Join</button>
-  <div class="canvasBottomTools"><button id="groupBtn">Group</button><button id="ungroupBtn">Ungroup</button><div class="canvasZoom"><button id="zoomOut">−</button><button id="zoomLabel">100%</button><button id="zoomIn">＋</button><button id="fitBtn2">Fit</button></div></div>
+  <div class="canvasBottomTools"><button id="groupBtn">Group</button><button id="ungroupBtn">Ungroup</button><button id="textToVectorsBtn" title="Creates editable outlines from the displayed font, preserving letter shapes and counters.">Text to Vectors</button><div class="canvasZoom"><button id="zoomOut">−</button><button id="zoomLabel">100%</button><button id="zoomIn">＋</button><button id="fitBtn2">Fit</button></div></div>
 
 </div>
 <div class="canvasArea"><canvas id="canvas" width="1200" height="800"></canvas><div id="brushCursor" class="round" aria-hidden="true"></div></div>
@@ -235,8 +235,6 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <div class="row"><label class="checkbox"><input id="shapeVisible" type="checkbox" checked> Visible</label><label class="checkbox"><input id="showAllVectors" type="checkbox" checked> Show all</label></div>
 
 <button id="applyProps" class="wide primary">Apply properties</button>
-<button id="textToVectorsBtn" class="wide">Convert selected text to vectors</button>
-<div class="muted">Creates editable outlines from the displayed font, preserving letter shapes and counters.</div>
 </div>
 </div>
 
