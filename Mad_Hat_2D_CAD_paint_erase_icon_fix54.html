@@ -87,6 +87,20 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 }
 
 
+
+/* Shape picker opens as a side menu beside the Rectangle tool. */
+.tools{overflow:visible;position:relative;z-index:20}
+.shape-tool-wrap{position:relative;width:100%}\n.paint-tool-wrap{position:relative;width:100%}\n.paint-tool-wrap>#paintMenuToggle{width:100%;position:relative}\n.paint-tool-wrap>#paintMenuToggle>span{display:block;font-size:18px;margin-bottom:3px}\n.paint-tool-wrap>#paintMenuToggle .shape-menu-caret{position:absolute;right:3px;top:50%;font-size:13px;margin:0;transform:translateY(-50%);color:var(--orange)}
+.shape-tool-wrap>#shapeMenuToggle{width:100%;position:relative}
+.shape-tool-wrap>#shapeMenuToggle>span{display:block;font-size:18px;margin-bottom:3px}
+.shape-tool-wrap>#shapeMenuToggle .shape-menu-caret{position:absolute;right:3px;top:50%;font-size:13px;margin:0;transform:translateY(-50%);color:var(--orange)}
+.shape-tool-menu{position:absolute;left:calc(100% + 9px);top:0;width:190px;padding:7px;background:#191f2b;border:1px solid #52627a;border-radius:7px;box-shadow:0 8px 24px #0009;z-index:1000;display:flex;flex-direction:column;gap:4px}
+.shape-tool-menu.hidden{display:none!important}
+.shape-menu-title{font-size:10px;letter-spacing:1.5px;color:#9ba9bd;padding:5px 7px 7px;border-bottom:1px solid #303b4f;margin-bottom:2px}
+.shape-tool-menu button{width:100%;text-align:left;display:flex;align-items:center;gap:10px;padding:9px 10px;min-height:36px;font-size:13px}
+.shape-tool-menu button span{font-size:18px;width:22px;text-align:center}
+.shape-tool-menu button.active{background:#49340f;border-color:var(--orange);color:#ffd47a}
+
 </style>
 </head>
 <body>
@@ -110,15 +124,27 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <nav class="panel tools" aria-label="Drawing tools">
 <button class="active" data-tool="select"><span>↖</span>Select</button>
 
-<button data-tool="rect"><span>▱</span>Rectangle</button>
-<button data-tool="ellipse"><span>◯</span>Ellipse</button>
-<button data-tool="line"><span>／</span>Line</button>
-<button data-tool="polygon"><span>⬡</span>Polygon</button>
-<button data-tool="triangle"><span>△</span>Triangle</button>
-<button data-tool="star"><span>★</span>5-Point Star</button>
+<div class="shape-tool-wrap">
+ <button id="shapeMenuToggle" type="button" aria-haspopup="true" aria-expanded="false"><span id="shapeToolIcon">▱</span><span id="shapeToolLabel">Rectangle</span><span class="shape-menu-caret">▸</span></button>
+ <div id="shapeToolMenu" class="shape-tool-menu hidden" role="menu" aria-label="Select drawing shape">
+  <div class="shape-menu-title">SELECT SHAPE</div>
+  <button type="button" data-shape-tool="rect" role="menuitem"><span>▱</span> Rectangle</button>
+  <button type="button" data-shape-tool="ellipse" role="menuitem"><span>◯</span> Ellipse</button>
+  <button type="button" data-shape-tool="line" role="menuitem"><span>／</span> Line</button>
+  <button type="button" data-shape-tool="polygon" role="menuitem"><span>⬡</span> Polygon</button>
+  <button type="button" data-shape-tool="triangle" role="menuitem"><span>△</span> Triangle</button>
+  <button type="button" data-shape-tool="star" role="menuitem"><span>★</span> 5-Point Star</button>
+ </div>
+</div>
 <button data-tool="pen"><span>⌁</span>Freehand</button>
-<button data-tool="brush" title="Paint a red SVG outline"><span>🖌</span>Paint</button>
-<button data-tool="brushEraser" title="Erase painted brush areas"><span>◉</span>Erase</button>
+<div class="paint-tool-wrap">
+ <button id="paintMenuToggle" type="button" aria-haspopup="true" aria-expanded="false"><span id="paintToolIcon">🖌</span><span id="paintToolLabel">Paint</span><span class="shape-menu-caret">▸</span></button>
+ <div id="paintToolMenu" class="shape-tool-menu hidden" role="menu" aria-label="Select paint tool">
+  <div class="shape-menu-title">SELECT PAINT TOOL</div>
+  <button type="button" data-paint-tool="brush" role="menuitem"><span>🖌</span> Paint</button>
+  <button type="button" data-paint-tool="brushEraser" role="menuitem"><span>◉</span> Erase</button>
+ </div>
+</div>
 <button data-tool="text"><span>T</span>Text</button>
 <button id="undoBtn"><span>↶</span>Undo</button>
 <button id="redoBtn"><span>↷</span>Redo</button>
@@ -647,6 +673,20 @@ $('textFont').addEventListener('change',async()=>{
 function setTool(t){
  tool=t;
  document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));
+ document.querySelectorAll('[data-shape-tool]').forEach(b=>b.classList.toggle('active',b.dataset.shapeTool===t));
+ const shapeChoice=document.querySelector(`[data-shape-tool="${t}"]`);
+ if(shapeChoice){
+  $('shapeToolIcon').textContent=shapeChoice.querySelector('span').textContent;
+  $('shapeToolLabel').textContent=shapeChoice.textContent.trim().replace(/^\S+\s*/,'');
+ }
+ $('shapeMenuToggle').classList.toggle('active',['rect','ellipse','line','polygon','triangle','star'].includes(t));
+ const paintChoice=document.querySelector(`[data-paint-tool="${t}"]`);
+ if(paintChoice){
+  $('paintToolIcon').textContent=paintChoice.querySelector('span').textContent;
+  $('paintToolLabel').textContent=paintChoice.textContent.trim().replace(/^\S+\s*/,'');
+ }
+ $('paintMenuToggle').classList.toggle('active',t==='brush'||t==='brushEraser');
+ document.querySelectorAll('[data-paint-tool]').forEach(b=>b.classList.toggle('active',b.dataset.paintTool===t));
  $('selectTool').classList.toggle('active',t==='select');
  $('cutJoinBtn').classList.toggle('active',t==='scissors');
  canvas.style.cursor=(t==='brush'||t==='brushEraser')?'none':t==='pan'?'grab':t==='select'?'default':t==='scissors'?scissorsCursor(false):'crosshair';
@@ -805,6 +845,41 @@ canvas.addEventListener('wheel',e=>{
 },{passive:false});
 
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+$('shapeMenuToggle').onclick=e=>{
+ e.stopPropagation();
+ const menu=$('shapeToolMenu'),opening=menu.classList.contains('hidden');
+ menu.classList.toggle('hidden',!opening);
+ $('shapeMenuToggle').setAttribute('aria-expanded',String(opening));
+};
+document.querySelectorAll('[data-shape-tool]').forEach(b=>b.onclick=e=>{
+ e.stopPropagation();
+ setTool(b.dataset.shapeTool);
+ $('shapeToolMenu').classList.add('hidden');
+ $('shapeMenuToggle').setAttribute('aria-expanded','false');
+});
+$('paintMenuToggle').onclick=e=>{
+ e.stopPropagation();
+ const menu=$('paintToolMenu'),opening=menu.classList.contains('hidden');
+ menu.classList.toggle('hidden',!opening);
+ $('paintMenuToggle').setAttribute('aria-expanded',String(opening));
+};
+document.querySelectorAll('[data-paint-tool]').forEach(b=>b.onclick=e=>{
+ e.stopPropagation();
+ setTool(b.dataset.paintTool);
+ $('paintToolMenu').classList.add('hidden');
+ $('paintMenuToggle').setAttribute('aria-expanded','false');
+});
+document.addEventListener('click',e=>{
+ if(!$('shapeToolMenu').contains(e.target)&&!$('shapeMenuToggle').contains(e.target)){
+  $('shapeToolMenu').classList.add('hidden');
+  $('shapeMenuToggle').setAttribute('aria-expanded','false');
+ }
+ if(!$('paintToolMenu').contains(e.target)&&!$('paintMenuToggle').contains(e.target)){
+  $('paintToolMenu').classList.add('hidden');
+  $('paintMenuToggle').setAttribute('aria-expanded','false');
+ }
+});
+
 $('selectTool').onclick=()=>setTool('select');
 $('brushSize').oninput=()=>{$('brushSizeVal').textContent=$('brushSize').value+' mm';updateBrushCursor()};
 $('brushShape').onchange=updateBrushCursor;
