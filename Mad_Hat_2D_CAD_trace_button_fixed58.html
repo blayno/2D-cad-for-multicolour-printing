@@ -1174,8 +1174,38 @@ for(const [id,out,suffix] of [['colors','colorsVal',''],['threshold','thresholdV
  $(id).oninput=()=>$(out).textContent=$(id).value+suffix;
 }
 $('keepReference').onchange=()=>{referenceVisible=$('keepReference').checked;render()};
-$('traceBtn').onclick=()=>traceImage(false);
-$('autoTraceBtn').onclick=()=>traceImage(true);
+// Guard tracing so errors are visible and the interface never silently hangs.
+let traceBusy=false;
+function runTraceSafely(auto){
+ if(traceBusy)return;
+ if(!reference){
+  alert('Import an image first.');
+  status('Trace cancelled — import an image first.');
+  return;
+ }
+ traceBusy=true;
+ const btn=auto?$('autoTraceBtn'):$('traceBtn');
+ const label=btn.textContent;
+ btn.disabled=true;
+ btn.textContent='Tracing…';
+ status('Tracing image — please wait…');
+ setTimeout(()=>{
+  try{
+   traceImage(auto);
+  }catch(err){
+   console.error('Image tracing failed:',err);
+   const message=err&&err.message?err.message:String(err);
+   status('Tracing failed: '+message);
+   alert('Image tracing failed.\\n\\n'+message+'\\n\\nTry a smaller image or reduce the colour count.');
+  }finally{
+   traceBusy=false;
+   btn.disabled=false;
+   btn.textContent=label;
+  }
+ },30);
+}
+$('traceBtn').onclick=()=>runTraceSafely(false);
+$('autoTraceBtn').onclick=()=>runTraceSafely(true);
 
 /* ==========================================================
    SMOOTH VECTOR TRACING
@@ -1190,7 +1220,11 @@ function traceImage(auto){
  if(!reference){alert('Import an image first.');return}
  const w=reference.naturalWidth||reference.width;
  const h=reference.naturalHeight||reference.height;
- if(!w||!h)return;
+ if(!w||!h){
+  status('Tracing failed — the imported image has no readable dimensions.');
+  alert('The imported image has no readable dimensions. Please re-import it and try again.');
+  return;
+ }
 
  // Higher tracing resolution retains finer features and reduces blocky contours.
  const max=700;
@@ -1507,6 +1541,11 @@ strokeWidth:.25,
  selected=null;selectedIds=[];
  renderLayers();updateProps();render();
 
+ if(!added){
+  status('No vectors created. Lower Noise reduction, increase Colour count, or uncheck Ignore near-white background.');
+  alert('No vectors were created.\\n\\nTry lowering Noise reduction, increasing Colour count, or unchecking Ignore near-white background.');
+  return;
+ }
  status(`Smooth trace complete: ${added} contours across ${top.length} colour groups. Smoothness: ${smooth}.`);
 }
 
