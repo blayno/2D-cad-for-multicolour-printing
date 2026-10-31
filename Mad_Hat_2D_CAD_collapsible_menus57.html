@@ -105,6 +105,16 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 .shape-tool-menu button span{font-size:18px;width:22px;text-align:center}
 .shape-tool-menu button.active{background:#49340f;border-color:var(--orange);color:#ffd47a}
 
+
+/* All settings sections open as compact click-to-expand menus. */
+.settings-menu{padding:0}
+.settings-menu>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:12px;font-size:15px;font-weight:bold;user-select:none}
+.settings-menu>summary::-webkit-details-marker{display:none}
+.settings-menu>summary:hover{color:var(--orange)}
+.settings-menu .settings-caret{color:var(--orange);font-size:16px;transition:transform .15s ease}
+.settings-menu[open] .settings-caret{transform:rotate(90deg)}
+.settings-menu-content{padding:0 12px 12px}
+
 </style>
 </head>
 <body>
@@ -155,16 +165,19 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 </nav>
 
 <aside class="panel leftPanel">
-<div class="section">
-<h3>Outline Brush</h3>
+<details class="section settings-menu">
+<summary>Outline Brush<span class="settings-caret">▸</span></summary>
+<div class="settings-menu-content">
 <label class="fieldlabel" for="brushSize">Brush size <span id="brushSizeVal" class="value">8 mm</span></label>
 <input id="brushSize" type="range" min="1" max="30" value="8">
 <label class="fieldlabel" for="brushShape">Brush shape</label>
 <select id="brushShape" style="width:100%"><option value="round">Round</option><option value="square">Square</option></select>
 <div class="muted" style="margin-top:7px">Paint on the grid to create an editable red SVG outline.</div>
 </div>
-<div class="section">
-<h3>Text Settings</h3>
+</details>
+<details class="section settings-menu">
+<summary>Text Settings<span class="settings-caret">▸</span></summary>
+<div class="settings-menu-content">
 <label class="fieldlabel" for="textFont">Font family</label>
 <select id="textFont" style="width:100%">
 <option value="Arial">Arial</option><option value="Verdana">Verdana</option>
@@ -186,16 +199,17 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 </select>
 <div class="muted" style="margin-top:7px">Choose a font before placing text. Script fonts load from Google Fonts and need an internet connection.</div>
 </div>
-<div class="section">
-<h3>Import & Trace Image</h3>
+</details>
+<details class="section settings-menu">
+<summary>Import & Trace Image<span class="settings-caret">▸</span></summary>
 <input id="imageInput" type="file" accept="image/*,.svg" class="hidden">
 <button id="chooseImage" class="wide">＋ Import image / SVG</button>
 <div class="muted" style="margin-top:7px">PNG, JPG, GIF, BMP, WEBP or SVG. Raster images can be traced into colour regions.</div>
 <div id="imageInfo" class="notice" style="margin-top:9px">No image imported yet. Import a reference image to start tracing.</div>
-</div>
+</details>
 
-<div class="section">
-<h3>Image Tracing</h3>
+<details class="section settings-menu">
+<summary>Image Tracing<span class="settings-caret">▸</span></summary>
 <label class="fieldlabel">Trace mode</label>
 <div class="row"><button data-mode="bw">Black & White</button><button data-mode="gray">Greyscale</button><button class="active" data-mode="color">Colour</button></div>
 
@@ -216,17 +230,17 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <button id="traceBtn" class="wide primary">Trace Image to Smooth Vectors</button> <button id="autoTraceBtn" class="wide">Auto Trace Vector Colour Layers</button>
 
 <div class="muted" style="margin-top:7px">Smoothness is applied to closed contours. For the cleanest results, use high-contrast images and moderate colour counts.</div>
-</div>
+</details>
 
-<div class="section">
-<h3>Canvas & Document</h3>
+<details class="section settings-menu">
+<summary>Canvas & Document<span class="settings-caret">▸</span></summary>
 <div class="row"><label for="docW">Width (mm)</label><input id="docW" type="number" min="1" max="2000" value="180"></div>
 <div class="row"><label for="docH">Height (mm)</label><input id="docH" type="number" min="1" max="2000" value="180"></div>
 <label class="checkbox"><input type="checkbox" id="showGrid" checked> Show grid</label>
 <label class="checkbox"><input type="checkbox" id="snapGrid"> Snap to grid</label>
 <label class="fieldlabel">Grid spacing (mm)</label><input id="gridSize" type="number" min="1" max="100" value="5" style="width:100%">
 <button id="fitBtn" class="wide">Fit drawing to view</button>
-</div>
+</details>
 </aside>
 
 <main class="panel canvasWrap">
@@ -245,16 +259,16 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 </main>
 
 <aside class="panel rightPanel">
-<div class="section">
-<h3>Layers & Colours</h3>
+<details class="section settings-menu">
+<summary>Layers & Colours<span class="settings-caret">▸</span></summary>
 <div id="layerList" class="layerList"></div>
 <div class="row"><button id="addLayer">＋ Layer</button><button id="deleteLayer">Delete layer</button></div>
 <div class="row"><button id="layerUp">↑ Move up</button><button id="layerDown">↓ Move down</button></div>
 <button id="transferShapes" class="wide" type="button">Move selected shapes to active layer</button>
-</div>
+</details>
 
-<div class="section">
-<h3>Shape Properties</h3>
+<details class="section settings-menu">
+<summary>Shape Properties<span class="settings-caret">▸</span></summary>
 <div id="noSelection" class="muted">Select a shape to edit its position, size, colour and outline.</div>
 <div id="properties" class="hidden">
 <label class="fieldlabel">Name</label><input id="shapeName" type="text" style="width:100%">
@@ -266,15 +280,15 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 
 <button id="applyProps" class="wide primary">Apply properties</button>
 </div>
-</div>
+</details>
 
-<div class="section"><h3>Vector offset</h3>
+<details class="section settings-menu"><summary>Vector offset<span class="settings-caret">▸</span></summary>
 <label class="fieldlabel" for="offsetDistance">Distance (mm)</label><input id="offsetDistance" type="number" min="0.1" step="0.1" value="2" style="width:100%">
 <label class="fieldlabel" for="offsetDirection">Offset direction</label><select id="offsetDirection" style="width:100%"><option value="outward">Outwards</option><option value="inward">Inwards</option><option value="both">Inwards and outwards</option></select>
 <button id="offsetBtn" class="wide primary">Create offset vectors</button>
 <div class="muted" style="margin-top:7px">Creates editable polygon copies from selected rectangles, ellipses and closed polygons. Original shapes stay in place.</div>
-</div><div class="section"><h3>Align selection</h3><label class="fieldlabel" for="alignMode">Alignment</label><select id="alignMode" style="width:100%"><option value="left">Align left</option><option value="centerX">Center horizontally</option><option value="right">Align right</option><option value="top">Align top</option><option value="centerY">Center vertically</option><option value="bottom">Align bottom</option><option value="distributeX">Distribute horizontally</option><option value="distributeY">Distribute vertically</option></select><button id="alignBtn" class="wide">Apply alignment</button></div><div class="section">
-<h3>Export for SVG / 3D printing</h3>
+</details><details class="section settings-menu"><summary>Align selection<span class="settings-caret">▸</span></summary><label class="fieldlabel" for="alignMode">Alignment</label><select id="alignMode" style="width:100%"><option value="left">Align left</option><option value="centerX">Center horizontally</option><option value="right">Align right</option><option value="top">Align top</option><option value="centerY">Center vertically</option><option value="bottom">Align bottom</option><option value="distributeX">Distribute horizontally</option><option value="distributeY">Distribute vertically</option></select><button id="alignBtn" class="wide">Apply alignment</button></details><details class="section settings-menu">
+<summary>Export for SVG / 3D printing<span class="settings-caret">▸</span></summary>
 <label class="fieldlabel">Export format</label>
 <select id="exportMode" style="width:100%">
 <option value="combined">Single SVG (all visible shapes)</option>
@@ -289,7 +303,7 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <button id="exportLayers" class="wide">⇩ Export each layer as SVG</button>
 <button id="exportJson" class="wide">Save editable project JSON</button>
 <div class="notice" style="margin-top:9px">SVG preserves vector paths and fill colours. Export separate layers for multicolour printing.</div>
-</div>
+</details>
 </aside>
 </div>
 
