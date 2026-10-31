@@ -5,6 +5,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mad Hat 2D CAD — Trace, Design, Create</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Allura&family=Caveat:wght@400;700&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Lobster&family=Pacifico&family=Permanent+Marker&family=Satisfy&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#10141d;--panel:#191f2b;--panel2:#202838;--line:#303b4f;--text:#edf2fa;--muted:#9ba9bd;--orange:#f0a000;--blue:#58a6ff;--green:#62d6bd}
 *{box-sizing:border-box}
@@ -129,6 +132,29 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <label class="fieldlabel" for="brushShape">Brush shape</label>
 <select id="brushShape" style="width:100%"><option value="round">Round</option><option value="square">Square</option></select>
 <div class="muted" style="margin-top:7px">Paint on the grid to create an editable red SVG outline.</div>
+</div>
+<div class="section">
+<h3>Text Settings</h3>
+<label class="fieldlabel" for="textFont">Font family</label>
+<select id="textFont" style="width:100%">
+<option value="Arial">Arial</option><option value="Verdana">Verdana</option>
+<option value="Georgia">Georgia</option><option value="Times New Roman">Times New Roman</option>
+<option value="Trebuchet MS">Trebuchet MS</option><option value="Courier New">Courier New</option>
+<option value="Impact">Impact</option><option value="Palatino Linotype">Palatino Linotype</option>
+<option value="Comic Sans MS">Comic Sans MS</option>
+<option value="Pacifico">Pacifico — Script</option>
+<option value="Dancing Script">Dancing Script — Cursive</option>
+<option value="Great Vibes">Great Vibes — Elegant Script</option>
+<option value="Allura">Allura — Fine Script</option>
+<option value="Satisfy">Satisfy — Handwriting</option>
+<option value="Caveat">Caveat — Handwriting</option>
+<option value="Lobster">Lobster — Bold Script</option>
+<option value="Permanent Marker">Permanent Marker</option>
+<option value="Brush Script MT">Brush Script MT</option>
+<option value="Segoe Script">Segoe Script</option>
+<option value="Lucida Handwriting">Lucida Handwriting</option>
+</select>
+<div class="muted" style="margin-top:7px">Choose a font before placing text. Script fonts load from Google Fonts and need an internet connection.</div>
 </div>
 <div class="section">
 <h3>Import & Trace Image</h3>
@@ -469,7 +495,7 @@ function drawShape(sh,preview){
    if(i)ctx.lineTo(pt.x,pt.y);else ctx.moveTo(pt.x,pt.y);
   });
  }else if(sh.type==='text'){
-  ctx.font=`${Math.max(8,Math.abs(h))}px Arial`;
+  ctx.font=`${Math.max(8,Math.abs(h))}px "${sh.fontFamily||"Arial"}"`;
    if(sh.fill==='none'){ctx.strokeStyle=sh.stroke||'#ffffff';ctx.lineWidth=Math.max(1,(sh.strokeWidth||.5)*scale());ctx.strokeText(sh.text||'Text',p.x,p.y+Math.abs(h))}
    else ctx.fillText(sh.text||'Text',p.x,p.y+Math.abs(h));
  }
@@ -503,12 +529,35 @@ function drawSelectionOutline(sh){
   pts.forEach((v,i)=>i?ctx.lineTo(p.x+v[0]*w,p.y+v[1]*h):ctx.moveTo(p.x+v[0]*w,p.y+v[1]*h));ctx.closePath();
  }else if(sh.type==='freehand'&&sh.points){
   sh.points.forEach((v,i)=>{const pt=toScreen(v[0],v[1]);if(i)ctx.lineTo(pt.x,pt.y);else ctx.moveTo(pt.x,pt.y)});
- }else if(sh.type==='text')ctx.rect(p.x,p.y,w,h);
+ }else if(sh.type==='text'){const b=shapeBounds(sh),a=toScreen(b.l,b.t),z=toScreen(b.r,b.b);ctx.rect(a.x,a.y,z.x-a.x,z.y-a.y);}
  ctx.strokeStyle='#ff3333';ctx.lineWidth=2.5;ctx.setLineDash([]);ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();ctx.restore();
 }
 function selectedShapes(){return selectedIds.map(shapeById).filter(sh=>sh&&visible(sh))}
 function shapeBounds(sh){
  if(sh.type==='freehand'&&sh.points&&sh.points.length){const xs=sh.points.map(p=>p[0]),ys=sh.points.map(p=>p[1]);return{l:Math.min(...xs),t:Math.min(...ys),r:Math.max(...xs),b:Math.max(...ys)}}
+ if(sh.type==='text'){
+  const s=Math.max(.001,scale()),fontSize=Math.max(8,Math.abs(sh.h)*s);
+  ctx.save();ctx.font=`${fontSize}px "${sh.fontFamily||"Arial"}"`;
+  const metrics=ctx.measureText(sh.text||'Text');
+  ctx.restore();
+
+  // drawShape() places the text baseline one scaled text-height below sh.y.
+  // Keep all measurements in screen pixels until converting the glyph bounds
+  // back to document coordinates; mixing document units and screen pixels
+  // shifts the selection box above the actual text.
+  const baselinePx=Math.abs(sh.h)*s;
+  const ascent=metrics.actualBoundingBoxAscent||fontSize*.8;
+  const descent=metrics.actualBoundingBoxDescent||fontSize*.2;
+  const left=metrics.actualBoundingBoxLeft||0;
+  const right=Math.max(metrics.width,metrics.actualBoundingBoxRight||0);
+  const strokePad=(+sh.strokeWidth||0)/2;
+  return{
+   l:sh.x-left/s-strokePad,
+   t:sh.y+(baselinePx-ascent)/s-strokePad,
+   r:sh.x+right/s+strokePad,
+   b:sh.y+(baselinePx+descent)/s+strokePad
+  };
+ }
  return{l:Math.min(sh.x,sh.x+sh.w),t:Math.min(sh.y,sh.y+sh.h),r:Math.max(sh.x,sh.x+sh.w),b:Math.max(sh.y,sh.y+sh.h)}
 }
 function centerSelectedOnBuildplate(){
@@ -540,7 +589,8 @@ function resizeBounds(start,handle,p,uniform){
 function applySelectionResize(drag,p,uniform){const next=resizeBounds(drag.bounds,drag.handle,p,uniform),old=drag.bounds,ow=Math.max(.001,old.r-old.l),oh=Math.max(.001,old.b-old.t),nw=next.r-next.l,nh=next.b-next.t;for(const item of drag.items){const sh=shapeById(item.id);if(!sh)continue;const mapX=x=>next.l+(x-old.l)/ow*nw,mapY=y=>next.t+(y-old.t)/oh*nh;sh.x=mapX(item.x);sh.y=mapY(item.y);sh.w=mapX(item.x+item.w)-sh.x;sh.h=mapY(item.y+item.h)-sh.y;if(sh.type==='freehand'&&item.points)sh.points=item.points.map(v=>[mapX(v[0]),mapY(v[1])])}}
 function segmentDistance(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,den=dx*dx+dy*dy,t=den?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/den)):0;return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy)}
 function pointIn(sh,p){
- const left=Math.min(sh.x,sh.x+sh.w),right=Math.max(sh.x,sh.x+sh.w),top=Math.min(sh.y,sh.y+sh.h),bottom=Math.max(sh.y,sh.y+sh.h),box=p.x>=left&&p.x<=right&&p.y>=top&&p.y<=bottom,tol=Math.max(5/Math.max(.001,scale()),(+sh.strokeWidth||0)/2);
+ const bounds=sh.type==='text'?shapeBounds(sh):null;
+ const left=bounds?bounds.l:Math.min(sh.x,sh.x+sh.w),right=bounds?bounds.r:Math.max(sh.x,sh.x+sh.w),top=bounds?bounds.t:Math.min(sh.y,sh.y+sh.h),bottom=bounds?bounds.b:Math.max(sh.y,sh.y+sh.h),box=p.x>=left&&p.x<=right&&p.y>=top&&p.y<=bottom,tol=Math.max(5/Math.max(.001,scale()),(+sh.strokeWidth||0)/2);
  if(sh.type==='line')return segmentDistance(p,{x:sh.x,y:sh.y},{x:sh.x+sh.w,y:sh.y+sh.h})<=tol;
  if(sh.type==='freehand'&&sh.points){for(let i=1;i<sh.points.length;i++)if(segmentDistance(p,{x:sh.points[i-1][0],y:sh.points[i-1][1]},{x:sh.points[i][0],y:sh.points[i][1]})<=tol)return true;return false}
  if(sh.type==='ellipse'){const rx=Math.abs(sh.w/2),ry=Math.abs(sh.h/2);if(!rx||!ry)return false;const dx=(p.x-(sh.x+sh.w/2))/rx,dy=(p.y-(sh.y+sh.h/2))/ry,v=dx*dx+dy*dy;return sh.fill==='none'?Math.abs(v-1)<=tol/Math.max(rx,ry):v<=1}
@@ -573,7 +623,28 @@ function updateProps(){
  for(const [id,v] of [['shapeName',s.name],['shapeX',s.x],['shapeY',s.y],['shapeW',s.w],['shapeH',s.h],['shapeVisible',s.visible!==false]]){
   if($(id).type==='checkbox')$(id).checked=v;else $(id).value=v;
  }
+ if(s.type==='text'&&s.fontFamily)$('textFont').value=s.fontFamily;
 }
+
+$('textFont').addEventListener('change',async()=>{
+ const picked=selectedShapes().filter(sh=>sh.type==='text'&&!sh.locked&&!layer(sh.layer).locked);
+ if(!picked.length){status('Select a text object to change its font.');return}
+ const fontFamily=$('textFont').value||'Arial';
+ snapshot();
+ picked.forEach(sh=>sh.fontFamily=fontFamily);
+ // Redraw immediately, then redraw again once a web font has finished loading.
+ render();
+ status(`Loading ${fontFamily}…`);
+ try{
+  if(document.fonts&&fontFamily){
+   const sample=picked.map(sh=>sh.text||'Text').join(' ');
+   await document.fonts.load(`16px \"${fontFamily}\"`,sample);
+   await document.fonts.ready;
+  }
+ }catch(err){/* Keep the browser fallback font if the web font is unavailable. */}
+ render();
+ status(`Text font changed to ${fontFamily}`);
+});
 
 function setTool(t){
  tool=t;
@@ -627,7 +698,7 @@ canvas.addEventListener('pointerdown',e=>{
 
  if(tool==='text'){
   const t=prompt('Text to add:','Text');
-   if(t){snapshot();const sh=newShape('text',p.x,p.y,Math.max(10,t.length*4),8,{text:t,fill:'none',stroke:'#ffffff',strokeWidth:.5});updateProps();render()}
+   if(t){snapshot();const fontFamily=$('textFont').value||'Arial';const sh=newShape('text',p.x,p.y,Math.max(10,t.length*4),8,{text:t,fontFamily,fill:'none',stroke:'#ffffff',strokeWidth:.5});updateProps();render()}
   setTool('select');return;
  }
 
@@ -864,7 +935,7 @@ $('offsetBtn').onclick=createVectorOffsets;
 $('textToVectorsBtn').onclick=convertSelectedTextToVectors;
 function convertSelectedTextToVectors(){
  const ids=selectedIds.length?selectedIds:(selected?[selected]:[]),src=ids.map(shapeById).filter(s=>s&&s.type==='text'&&!s.locked&&!layer(s.layer).locked);if(!src.length){status('Select unlocked text to convert.');return}const made=[];
- for(const sh of src){const text=sh.text||'Text',size=Math.max(8,Math.abs(sh.h)),ppm=16,ctx=document.createElement('canvas').getContext('2d');ctx.font=`${size}px Arial`;const m=ctx.measureText(text),left=Math.max(0,m.actualBoundingBoxLeft||0),right=Math.max(m.width,m.actualBoundingBoxRight||0),asc=Math.max(size*.8,m.actualBoundingBoxAscent||0),desc=Math.max(size*.2,m.actualBoundingBoxDescent||0),pad=2,ox=sh.x-left-pad/ppm,oy=sh.y+size-asc-pad/ppm,w=Math.ceil((left+right+2*pad/ppm)*ppm),h=Math.ceil((asc+desc+2*pad/ppm)*ppm);if(w*h>5000000){status('Text is too large to convert at this size.');return}const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d',{willReadFrequently:true});g.font=`${size*ppm}px Arial`;g.textBaseline='alphabetic';g.fillStyle='#fff';g.fillText(text,(left+pad/ppm)*ppm,(asc+pad/ppm)*ppm);const data=g.getImageData(0,0,w,h).data,mask=new Uint8Array(w*h);for(let i=0;i<mask.length;i++)mask[i]=data[i*4+3]>127?1:0;
+ for(const sh of src){const text=sh.text||'Text',size=Math.max(8,Math.abs(sh.h)),ppm=16,ctx=document.createElement('canvas').getContext('2d');ctx.font=`${size}px "${sh.fontFamily||"Arial"}"`;const m=ctx.measureText(text),left=Math.max(0,m.actualBoundingBoxLeft||0),right=Math.max(m.width,m.actualBoundingBoxRight||0),asc=Math.max(size*.8,m.actualBoundingBoxAscent||0),desc=Math.max(size*.2,m.actualBoundingBoxDescent||0),pad=2,ox=sh.x-left-pad/ppm,oy=sh.y+size-asc-pad/ppm,w=Math.ceil((left+right+2*pad/ppm)*ppm),h=Math.ceil((asc+desc+2*pad/ppm)*ppm);if(w*h>5000000){status('Text is too large to convert at this size.');return}const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d',{willReadFrequently:true});g.font=`${size*ppm}px "${sh.fontFamily||"Arial"}"`;g.textBaseline='alphabetic';g.fillStyle='#fff';g.fillText(text,(left+pad/ppm)*ppm,(asc+pad/ppm)*ppm);const data=g.getImageData(0,0,w,h).data,mask=new Uint8Array(w*h);for(let i=0;i<mask.length;i++)mask[i]=data[i*4+3]>127?1:0;
   const edges=[],key=(x,y)=>x+','+y;for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x;if(mask[i]){if(y===0||!mask[i-w])edges.push([x,y,x+1,y]);if(x===w-1||!mask[i+1])edges.push([x+1,y,x+1,y+1]);if(y===h-1||!mask[i+w])edges.push([x+1,y+1,x,y+1]);if(x===0||!mask[i-1])edges.push([x,y+1,x,y])}}const starts=new Map();edges.forEach((e,i)=>{const k=key(e[0],e[1]);if(!starts.has(k))starts.set(k,[]);starts.get(k).push(i)});const used=new Uint8Array(edges.length);
   for(let i=0;i<edges.length;i++){if(used[i])continue;const f=edges[i],pts=[[f[0],f[1]]];let cur=i,guard=0;while(cur>=0&&!used[cur]&&guard++<=edges.length){used[cur]=1;const e=edges[cur];pts.push([e[2],e[3]]);if(e[2]===pts[0][0]&&e[3]===pts[0][1])break;cur=-1;let best=-Infinity;for(const j of starts.get(key(e[2],e[3]))||[]){if(used[j])continue;const n=edges[j],ix=e[2]-e[0],iy=e[3]-e[1],dx=n[2]-n[0],dy=n[3]-n[1],turn=Math.atan2(ix*dy-iy*dx,ix*dx+iy*dy);if(cur<0||turn>best){cur=j;best=turn}}}if(pts.length<5||pts[0][0]!==pts.at(-1)[0]||pts[0][1]!==pts.at(-1)[1])continue;pts.pop();const clean=pts.filter((p,j)=>{const a=pts[(j+pts.length-1)%pts.length],b=pts[(j+1)%pts.length];return(p[0]-a[0])*(b[1]-p[1])!==(p[1]-a[1])*(b[0]-p[0])});if(clean.length<3)continue;const q=clean.map(p=>[ox+p[0]/ppm,oy+p[1]/ppm]),xs=q.map(p=>p[0]),ys=q.map(p=>p[1]),x=Math.min(...xs),y=Math.min(...ys),bw=Math.max(...xs)-x,bh=Math.max(...ys)-y;if(bw<=0||bh<=0)continue;made.push({id:nextId++,type:'polygon',x,y,w:bw,h:bh,points:q.map(p=>[(p[0]-x)/bw,(p[1]-y)/bh]),fill:'none',stroke:sh.stroke||'#fff',strokeWidth:sh.strokeWidth||.5,layer:sh.layer,textOutline:true,textOutlineHole:signedPolygonArea(clean)<0,name:(sh.name||text)+' outline',visible:sh.visible!==false,locked:false})}
  }
@@ -1476,7 +1547,7 @@ function svgString(list,includeRef=false){
    const pts=(sh.points||[[0.5,0],[0.933,0.25],[0.933,0.75],[0.5,1],[0.067,0.75],[0.067,0.25]]).map(p=>`${sh.x+p[0]*sh.w},${sh.y+p[1]*sh.h}`).join(' ');
    parts.push(`<polygon points="${pts}" ${common}/>`);
   }else if(sh.type==='text'){
-   parts.push(`<text x="${sh.x}" y="${sh.y+sh.h}" font-family="Arial" font-size="${sh.h}" ${common}>${xml(sh.text||'Text')}</text>`);
+   parts.push(`<text x="${sh.x}" y="${sh.y+sh.h}" font-family="${xml(sh.fontFamily||'Arial')}" font-size="${sh.h}"  ${common}>${xml(sh.text||'Text')}</text>`);
   }else if(sh.type==='freehand'&&sh.points){
    const d=sh.points.map((p,i)=>(i?'L':'M')+p[0]+' '+p[1]).join(' ');
    parts.push(`<path d="${d}" fill="none" stroke="${sh.stroke||sh.fill}" stroke-width="${Math.max(.5,sh.strokeWidth)}" stroke-linecap="${sh.lineCap||'round'}" stroke-linejoin="round"/>`);
@@ -1558,7 +1629,6 @@ status(recovered?'Recovered your autosaved vectors and layers.':'Ready — impor
 
 </body>
 </html>
-
 
 
 
