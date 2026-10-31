@@ -237,7 +237,7 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <button id="cutJoinBtn" title="Click a vector section between intersections to trim it">✂ Cut</button>
 <button id="joinBtn" title="Join the two selected open vectors at their nearest endpoints">Join</button>
 <button id="textCutJoinBtn" title="Combine selected converted text outline vectors">Text Cut &amp; Join</button>
-  <div class="canvasBottomTools"><button id="groupBtn">Group</button><button id="ungroupBtn">Ungroup</button><button id="textToVectorsBtn" title="Creates editable outlines from the displayed font, preserving letter shapes and counters.">Text to Vectors</button><div class="canvasZoom"><button id="zoomOut">−</button><button id="zoomLabel">100%</button><button id="zoomIn">＋</button><button id="fitBtn2">Fit</button></div></div>
+  <div class="canvasBottomTools"><button id="groupBtn">Group</button><button id="ungroupBtn">Ungroup</button><button id="textToVectorsBtn" title="Creates editable outlines from the displayed font, preserving letter shapes and counters.">Text to Vectors</button><button id="paintToOutlineBtn" title="Convert the painted area, including erased gaps, into editable outline vectors.">Paint to Outline</button><div class="canvasZoom"><button id="zoomOut">−</button><button id="zoomLabel">100%</button><button id="zoomIn">＋</button><button id="fitBtn2">Fit</button></div></div>
 
 </div>
 <div class="canvasArea"><canvas id="canvas" width="1200" height="800"></canvas><div id="brushCursor" class="round" aria-hidden="true"></div></div>
@@ -1010,6 +1010,28 @@ function joinOverlappingOffsets(items){const groups=new Map();for(const sh of it
 function createVectorOffsets(){const distance=+$('offsetDistance').value,direction=$('offsetDirection').value;if(!Number.isFinite(distance)||distance<=0){alert('Enter an offset distance greater than 0 mm.');return}const ids=Array.from(new Set(selectedIds.length?selectedIds:(selected?[selected]:[]))),sources=ids.map(shapeById).filter(sh=>sh&&['rect','ellipse','polygon'].includes(sh.type)&&!sh.locked&&!layer(sh.layer).locked),startingId=nextId;if(!sources.length){status('Select an unlocked rectangle, ellipse or closed polygon to offset.');return}const made=[];for(const source of sources){const pts=offsetSourcePoints(source),sides=direction==='both'?['inward','outward']:[direction];for(const side of sides){const result=offsetPolygon(pts,distance,(side==='outward')!==!!source.textOutlineHole,!!source.textOutline);if(result){const contours=Array.isArray(result[0][0])?result:[result];for(const contour of contours){const copy=makeOffsetShape(source,contour,side);if(copy)made.push(copy)}}}}if(!made.length){status('No valid offset contours at that distance. Try a smaller distance.');return}const rawCount=made.length,joined=joinOverlappingOffsets(made);made.splice(0,made.length,...joined);const nextAfterOffsets=nextId;nextId=startingId;snapshot();nextId=nextAfterOffsets;shapes.push(...made);selectedIds=made.map(sh=>sh.id);selected=selectedIds[selectedIds.length-1];renderLayers();updateProps();render();status(`${made.length} offset vector${made.length===1?'':'s'} created; original shapes retained.`)}
 $('offsetBtn').onclick=createVectorOffsets;
 $('textToVectorsBtn').onclick=convertSelectedTextToVectors;
+$('paintToOutlineBtn').onclick=convertPaintToOutlines;
+function convertPaintToOutlines(){
+ const strokes=shapes.filter(sh=>visible(sh)&&isBrushOperation(sh));
+ if(!strokes.some(isOutlineBrush)){status('Paint something with the Paint tool before converting it to outlines.');return}
+ const d=brushContours(strokes);
+ if(!d){status('No painted outline could be generated.');return}
+ const made=[];
+ for(const match of d.matchAll(/M([^Z]+)Z/g)){
+  const nums=[...match[1].matchAll(/(-?(?:\d+\.?\d*|\.\d+))\s+(-?(?:\d+\.?\d*|\.\d+))/g)].map(m=>[+m[1],+m[2]]);
+  if(nums.length<3)continue;
+  const xs=nums.map(p=>p[0]),ys=nums.map(p=>p[1]),x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y;
+  if(w<.001||h<.001)continue;
+  made.push({id:nextId++,type:'polygon',x,y,w,h,points:nums.map(p=>[(p[0]-x)/w,(p[1]-y)/h]),fill:'none',stroke:'#ff3333',strokeWidth:.5,layer:activeLayer,name:'Paint outline '+(made.length+1),visible:true,locked:false,paintOutline:true});
+ }
+ if(!made.length){status('No usable paint contours were found.');return}
+ snapshot();
+ const operationIds=new Set(strokes.map(sh=>sh.id));
+ shapes=shapes.filter(sh=>!operationIds.has(sh.id));
+ shapes.push(...made);selectedIds=made.map(sh=>sh.id);selected=selectedIds[selectedIds.length-1];
+ renderLayers();updateProps();render();
+ status(`${made.length} editable outline vector${made.length===1?'':'s'} created from painted area.`);
+}
 function convertSelectedTextToVectors(){
  const ids=selectedIds.length?selectedIds:(selected?[selected]:[]),src=ids.map(shapeById).filter(s=>s&&s.type==='text'&&!s.locked&&!layer(s.layer).locked);if(!src.length){status('Select unlocked text to convert.');return}const made=[];
  for(const sh of src){const text=sh.text||'Text',size=Math.max(8,Math.abs(sh.h)),ppm=16,ctx=document.createElement('canvas').getContext('2d');ctx.font=`${size}px "${sh.fontFamily||"Arial"}"`;const m=ctx.measureText(text),left=Math.max(0,m.actualBoundingBoxLeft||0),right=Math.max(m.width,m.actualBoundingBoxRight||0),asc=Math.max(size*.8,m.actualBoundingBoxAscent||0),desc=Math.max(size*.2,m.actualBoundingBoxDescent||0),pad=2,ox=sh.x-left-pad/ppm,oy=sh.y+size-asc-pad/ppm,w=Math.ceil((left+right+2*pad/ppm)*ppm),h=Math.ceil((asc+desc+2*pad/ppm)*ppm);if(w*h>5000000){status('Text is too large to convert at this size.');return}const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d',{willReadFrequently:true});g.font=`${size*ppm}px "${sh.fontFamily||"Arial"}"`;g.textBaseline='alphabetic';g.fillStyle='#fff';g.fillText(text,(left+pad/ppm)*ppm,(asc+pad/ppm)*ppm);const data=g.getImageData(0,0,w,h).data,mask=new Uint8Array(w*h);for(let i=0;i<mask.length;i++)mask[i]=data[i*4+3]>127?1:0;
