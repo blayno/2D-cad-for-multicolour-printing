@@ -111,6 +111,8 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <button data-tool="ellipse"><span>◯</span>Ellipse</button>
 <button data-tool="line"><span>／</span>Line</button>
 <button data-tool="polygon"><span>⬡</span>Polygon</button>
+<button data-tool="triangle"><span>△</span>Triangle</button>
+<button data-tool="star"><span>★</span>5-Point Star</button>
 <button data-tool="pen"><span>⌁</span>Freehand</button>
 <button data-tool="brush" title="Paint a red SVG outline"><span>🖌</span>Paint</button>
 <button data-tool="brushEraser" title="Erase painted brush areas"><span>◉</span>Erase</button>
@@ -311,13 +313,55 @@ function newShape(type,x,y,w,h,extra={}){
 function shapeById(id){return shapes.find(s=>s.id===id)}
 function visible(s){return s.visible!==false&&layer(s.layer).visible!==false}
 function isSelected(s){return selectedIds.includes(s.id)||selected===s.id}
+function brushSegments(sh){
+ if(!sh?.points?.length)return [];
+ const pts=sh.points;
+ if(pts.length===1)return [[{x:pts[0][0],y:pts[0][1]},{x:pts[0][0],y:pts[0][1]}]];
+ return pts.slice(1).map((p,i)=>[
+  {x:pts[i][0],y:pts[i][1]},
+  {x:p[0],y:p[1]}
+ ]);
+}
+function brushSegmentDistance(a1,a2,b1,b2){
+ const cross=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+ const on=(a,b,p)=>p.x>=Math.min(a.x,b.x)-1e-9&&p.x<=Math.max(a.x,b.x)+1e-9&&p.y>=Math.min(a.y,b.y)-1e-9&&p.y<=Math.max(a.y,b.y)+1e-9;
+ const c1=cross(a1,a2,b1),c2=cross(a1,a2,b2),c3=cross(b1,b2,a1),c4=cross(b1,b2,a2);
+ if(((c1>0&&c2<0)||(c1<0&&c2>0))&&((c3>0&&c4<0)||(c3<0&&c4>0)))return 0;
+ if(Math.abs(c1)<1e-9&&on(a1,a2,b1)||Math.abs(c2)<1e-9&&on(a1,a2,b2)||Math.abs(c3)<1e-9&&on(b1,b2,a1)||Math.abs(c4)<1e-9&&on(b1,b2,a2))return 0;
+ return Math.min(
+  segmentDistance(a1,b1,b2),segmentDistance(a2,b1,b2),
+  segmentDistance(b1,a1,a2),segmentDistance(b2,a1,a2)
+ );
+}
+function brushOpsTouch(a,b){
+ if(!a||!b||!isBrushOperation(a)||!isBrushOperation(b))return false;
+ // Only a paint stroke and an eraser can be linked. Same-type strokes do not
+ // become one object merely because they happen to cross.
+ if(isOutlineEraser(a)===isOutlineEraser(b))return false;
+ const eraser=isOutlineEraser(a)?a:b,paint=eraser===a?b:a;
+ const radius=(Math.max(.05,+eraser.strokeWidth||1)+Math.max(.05,+paint.strokeWidth||1))/2;
+ const aa=brushSegments(eraser),bb=brushSegments(paint);
+ for(const [a1,a2] of aa)for(const [b1,b2] of bb){
+  if(brushSegmentDistance(a1,a2,b1,b2)<=radius)return true;
+ }
+ return false;
+}
 function brushSelectionIds(ids){
- const base=Array.from(new Set(ids||[])),brushLayers=new Set(base.map(shapeById).filter(isBrushOperation).map(sh=>sh.layer));
- if(!brushLayers.size)return base;
- // Paint and its destination-out erasures form one visual object per layer.
- // Moving only the paint path would uncover the original un-erased stroke.
- const related=shapes.filter(item=>brushLayers.has(item.layer)&&isBrushOperation(item)).map(item=>item.id);
- return Array.from(new Set([...base,...related]));
+ const picked=new Set(ids||[]),queue=[...picked];
+ while(queue.length){
+  const current=shapeById(queue.pop());
+  if(!current||!isBrushOperation(current))continue;
+  // Follow saved links and live geometric intersections. The geometric check
+  // also repairs older projects whose eraser strokes were saved without links.
+  for(const item of shapes){
+   if(!isBrushOperation(item)||picked.has(item.id))continue;
+   const linked=(current.brushLinks||[]).includes(item.id)||(item.brushLinks||[]).includes(current.id);
+   if(linked||brushOpsTouch(current,item)){
+    picked.add(item.id);queue.push(item.id);
+   }
+  }
+ }
+ return Array.from(picked);
 }
 function groupMemberIds(sh){
  const members=sh&&sh.group?shapes.filter(item=>item.group===sh.group).map(item=>item.id):sh?[sh.id]:[];
@@ -390,6 +434,15 @@ function drawBrushComposite(){
  tc.globalCompositeOperation='source-over';ctx.drawImage(tmp,0,0,canvas.clientWidth,canvas.clientHeight);
 }
 
+function regularShapePoints(sides,star=false){
+ const pts=[],count=star?sides*2:sides;
+ for(let i=0;i<count;i++){
+  const angle=-Math.PI/2+i*Math.PI*2/count;
+  const radius=star&&i%2===1?.42:.5;
+  pts.push([.5+Math.cos(angle)*radius,.5+Math.sin(angle)*radius]);
+ }
+ return pts;
+}
 function drawShape(sh,preview){
  const p=toScreen(sh.x,sh.y),q=toScreen(sh.x+sh.w,sh.y+sh.h);
  const w=q.x-p.x,h=q.y-p.y;
@@ -407,7 +460,7 @@ function drawShape(sh,preview){
  }else if(sh.type==='line'){
   ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);
  }else if(sh.type==='polygon'){
-  const pts=sh.points||[[0,1],[.5,0],[1,1]];
+  const pts=sh.points||[[0.5,0],[0.933,0.25],[0.933,0.75],[0.5,1],[0.067,0.75],[0.067,0.25]];
   pts.forEach((v,i)=>i?ctx.lineTo(p.x+v[0]*w,p.y+v[1]*h):ctx.moveTo(p.x+v[0]*w,p.y+v[1]*h));
   ctx.closePath();
  }else if(sh.type==='freehand'&&sh.points){
@@ -446,7 +499,7 @@ function drawSelectionOutline(sh){
  else if(sh.type==='ellipse')ctx.ellipse(p.x+w/2,p.y+h/2,Math.abs(w/2),Math.abs(h/2),0,0,Math.PI*2);
  else if(sh.type==='line'){ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y)}
  else if(sh.type==='polygon'){
-  const pts=sh.points||[[0,1],[.5,0],[1,1]];
+  const pts=sh.points||[[0.5,0],[0.933,0.25],[0.933,0.75],[0.5,1],[0.067,0.75],[0.067,0.25]];
   pts.forEach((v,i)=>i?ctx.lineTo(p.x+v[0]*w,p.y+v[1]*h):ctx.moveTo(p.x+v[0]*w,p.y+v[1]*h));ctx.closePath();
  }else if(sh.type==='freehand'&&sh.points){
   sh.points.forEach((v,i)=>{const pt=toScreen(v[0],v[1]);if(i)ctx.lineTo(pt.x,pt.y);else ctx.moveTo(pt.x,pt.y)});
@@ -491,7 +544,7 @@ function pointIn(sh,p){
  if(sh.type==='line')return segmentDistance(p,{x:sh.x,y:sh.y},{x:sh.x+sh.w,y:sh.y+sh.h})<=tol;
  if(sh.type==='freehand'&&sh.points){for(let i=1;i<sh.points.length;i++)if(segmentDistance(p,{x:sh.points[i-1][0],y:sh.points[i-1][1]},{x:sh.points[i][0],y:sh.points[i][1]})<=tol)return true;return false}
  if(sh.type==='ellipse'){const rx=Math.abs(sh.w/2),ry=Math.abs(sh.h/2);if(!rx||!ry)return false;const dx=(p.x-(sh.x+sh.w/2))/rx,dy=(p.y-(sh.y+sh.h/2))/ry,v=dx*dx+dy*dy;return sh.fill==='none'?Math.abs(v-1)<=tol/Math.max(rx,ry):v<=1}
- if(sh.type==='polygon'){const pts=(sh.points||[[0,1],[.5,0],[1,1]]).map(v=>({x:sh.x+v[0]*sh.w,y:sh.y+v[1]*sh.h}));let inside=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const a=pts[i],b=pts[j];if(segmentDistance(p,a,b)<=tol)return true;if(((a.y>p.y)!==(b.y>p.y))&&p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x)inside=!inside}return sh.fill!=='none'&&inside}
+ if(sh.type==='polygon'){const pts=(sh.points||[[0.5,0],[0.933,0.25],[0.933,0.75],[0.5,1],[0.067,0.75],[0.067,0.25]]).map(v=>({x:sh.x+v[0]*sh.w,y:sh.y+v[1]*sh.h}));let inside=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const a=pts[i],b=pts[j];if(segmentDistance(p,a,b)<=tol)return true;if(((a.y>p.y)!==(b.y>p.y))&&p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x)inside=!inside}return sh.fill!=='none'&&inside}
  if(sh.type==='rect'&&sh.fill==='none'&&box)return Math.min(Math.abs(p.x-left),Math.abs(p.x-right),Math.abs(p.y-top),Math.abs(p.y-bottom))<=tol;
  return box;
 }
@@ -595,6 +648,7 @@ canvas.addEventListener('pointerdown',e=>{
    selected=selectedIds.filter(id=>{const item=shapeById(id);return item&&!isOutlineEraser(item)}).at(-1)||null;
    }else{
     if(!selectedIds.includes(hit.id)){selected=hit.id;selectedIds=hitIds}else{selected=hit.id}
+    selectedIds=brushSelectionIds(selectedIds);
     const members=selectedIds.map(shapeById).filter(Boolean);
     if(members.length&&members.every(sh=>!sh.locked&&!layer(sh.layer).locked)){
      drag={kind:'moveGroup',sx:p.x,sy:p.y,items:members.map(sh=>({id:sh.id,ox:sh.x,oy:sh.y,points:sh.type==='freehand'&&sh.points?sh.points.map(v=>[v[0],v[1]]):null})),before:historyState(),moved:false};
@@ -610,14 +664,14 @@ canvas.addEventListener('pointerdown',e=>{
  if(layer(activeLayer).locked){status('This layer is locked. Unlock it to draw.');return}
  snapshot();
  drawing={
-  id:nextId++,type:(tool==='pen'||tool==='brush'||tool==='brushEraser')?'freehand':tool,x:p.x,y:p.y,w:0,h:0,
-  centerOut:['rect','ellipse','polygon'].includes(tool),centerX:p.x,centerY:p.y,
+  id:nextId++,type:(tool==='pen'||tool==='brush'||tool==='brushEraser')?'freehand':['polygon','triangle','star'].includes(tool)?'polygon':tool,x:p.x,y:p.y,w:0,h:0,
+  centerOut:['rect','ellipse','polygon','triangle','star'].includes(tool),centerX:p.x,centerY:p.y,
    fill:'none',stroke:tool==='brush'?'#ff0000':'#ffffff',
   strokeWidth:(tool==='brush'||tool==='brushEraser')?+$('brushSize').value:tool==='line'||tool==='pen'?.5:0,
   lineCap:(tool==='brush'||tool==='brushEraser')?$('brushShape').value:'round',
   outlineBrush:tool==='brush',outlineEraser:tool==='brushEraser',
-  layer:activeLayer,name:(tool==='brushEraser'?'Erase paint ':tool+' ')+nextId,visible:true,
-  points:tool==='polygon'?[[0,1],[.5,0],[1,1]]:(tool==='pen'||tool==='brush'||tool==='brushEraser')?[[p.x,p.y],[p.x,p.y]]:undefined
+  layer:activeLayer,name:(tool==='brushEraser'?'Erase paint ':tool==='triangle'?'Triangle ':tool==='star'?'5-Point Star ':tool+' ')+nextId,visible:true,
+  points:tool==='polygon'?regularShapePoints(6):tool==='triangle'?regularShapePoints(3):tool==='star'?regularShapePoints(5,true):(tool==='pen'||tool==='brush'||tool==='brushEraser')?[[p.x,p.y],[p.x,p.y]]:undefined
  };
 });
 
@@ -635,8 +689,8 @@ canvas.addEventListener('pointerup',()=>{
    if(drawing.type==='line'){
     if(Math.hypot(drawing.w,drawing.h)<.2){drawing.w=5;drawing.h=0}
    }else{
-    if(Math.abs(drawing.w)<.2)drawing.w=tool==='polygon'?20:5;
-    if(Math.abs(drawing.h)<.2)drawing.h=tool==='polygon'?20:5;
+    if(Math.abs(drawing.w)<.2)drawing.w=['polygon','triangle','star'].includes(tool)?20:5;
+    if(Math.abs(drawing.h)<.2)drawing.h=['polygon','triangle','star'].includes(tool)?20:5;
     if(drawing.centerOut){drawing.x=drawing.centerX-drawing.w/2;drawing.y=drawing.centerY-drawing.h/2}
     if(drawing.w<0){drawing.x+=drawing.w;drawing.w=Math.abs(drawing.w)}
     if(drawing.h<0){drawing.y+=drawing.h;drawing.h=Math.abs(drawing.h)}
@@ -644,10 +698,9 @@ canvas.addEventListener('pointerup',()=>{
    delete drawing.centerOut;delete drawing.centerX;delete drawing.centerY;
    const completed=drawing;
    if(completed.outlineEraser){
-    // Keep the eraser as a real destination-out brush operation.
-    // This subtracts only the exact swept brush footprint from the painted
-    // pixels; it does not split/rebuild the stroke's centreline, which caused
-    // side-swipe erasing to remove an entire length of a thick stroke.
+    // Link this eraser to every paint stroke it actually cuts. The links keep
+    // erased regions attached to their paint when selected and moved.
+    completed.brushLinks=shapes.filter(item=>isOutlineBrush(item)&&brushOpsTouch(item,completed)).map(item=>item.id);
     shapes.push(completed);
     selected=null;selectedIds=[];
     drawing=null;renderLayers();updateProps();render();status('Paint erased with exact brush footprint');
@@ -1420,7 +1473,7 @@ function svgString(list,includeRef=false){
   }else if(sh.type==='line'){
    parts.push(`<line x1="${sh.x}" y1="${sh.y}" x2="${sh.x+sh.w}" y2="${sh.y+sh.h}" ${common}/>`);
   }else if(sh.type==='polygon'){
-   const pts=(sh.points||[[0,1],[.5,0],[1,1]]).map(p=>`${sh.x+p[0]*sh.w},${sh.y+p[1]*sh.h}`).join(' ');
+   const pts=(sh.points||[[0.5,0],[0.933,0.25],[0.933,0.75],[0.5,1],[0.067,0.75],[0.067,0.25]]).map(p=>`${sh.x+p[0]*sh.w},${sh.y+p[1]*sh.h}`).join(' ');
    parts.push(`<polygon points="${pts}" ${common}/>`);
   }else if(sh.type==='text'){
    parts.push(`<text x="${sh.x}" y="${sh.y+sh.h}" font-family="Arial" font-size="${sh.h}" ${common}>${xml(sh.text||'Text')}</text>`);
